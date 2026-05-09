@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  phone           String?  @unique
+  password_hash   String
+  name            String?
+  avatar_url      String?
+  theme           String   @default("system")
+  is_active       Boolean  @default(true)
+  last_login      DateTime?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  floors          Floor[]
+  esp_devices     EspDevice[]
+  device_types    DeviceType[]
+  schedules       Schedule[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+model Floor {
+  id          String   @id @default(uuid())
+  user_id     String
+  name        String
+  level       Int      @default(0)
+  layout_data Json?
+  width       Float    @default(800)
+  height      Float    @default(600)
+  thumbnail   String?
+  sort_order  Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  rooms       Room[]
+
+  @@index([user_id])
+  @@map("floors")
+}
+
+model Room {
+  id              String   @id @default(uuid())
+  floor_id        String
+  name            String
+  polygon_coords  Json
+  color           String   @default("#4ECDC4")
+  icon            String?
+  sort_order      Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  floor           Floor    @relation(fields: [floor_id], references: [id], onDelete: Cascade)
+  devices         Device[]
+
+  @@index([floor_id])
+  @@map("rooms")
+}
+
+model EspDevice {
+  id            String    @id @default(uuid())
+  user_id       String
+  name          String
+  mac_address   String    @unique
+  ip_address    String?
+  firmware_ver  String?
+  wifi_ssid     String?
+  is_online     Boolean   @default(false)
+  last_seen     DateTime?
+  config        Json?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  devices       Device[]
+
+  @@index([user_id])
+  @@map("esp_devices")
+}
+
+model DeviceType {
+  id                String   @id @default(uuid())
+  user_id           String?
+  name              String
+  icon              String
+  category          String   @default("appliance")
+  properties_schema Json     @default("{}")
+  is_default        Boolean  @default(false)
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+
+  user              User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  devices           Device[]
+
+  @@map("device_types")
+}
+
+model Device {
+  id            String    @id @default(uuid())
+  room_id       String
+  esp_device_id String
+  type_id       String
+  name          String
+  pin           Int
+  state         Json      @default("{}")
+  config        Json      @default("{}")
+  is_active     Boolean   @default(true)
+  last_updated  DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  room          Room      @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  esp_device    EspDevice @relation(fields: [esp_device_id], references: [id], onDelete: Cascade)
+  type          DeviceType @relation(fields: [type_id], references: [id], onDelete: Restrict)
+  schedules     Schedule[]
+  state_history DeviceStateHistory[]
+
+  @@index([room_id])
+  @@index([esp_device_id])
+  @@map("devices")
+}
+
+model DeviceStateHistory {
+  id         String   @id @default(uuid())
+  device_id  String
+  state      Json
+  source     String   @default("manual")
+  created_at DateTime @default(now())
+
+  device     Device   @relation(fields: [device_id], references: [id], onDelete: Cascade)
+
+  @@index([device_id])
+  @@index([created_at])
+  @@map("device_state_history")
+}
+
+model Schedule {
+  id          String    @id @default(uuid())
+  device_id   String
+  user_id     String
+  name        String?
+  action      Json
+  cron        String
+  timezone    String    @default("UTC")
+  is_active   Boolean   @default(true)
+  last_run    DateTime?
+  next_run    DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  device      Device    @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([device_id])
+  @@index([user_id])
+  @@map("schedules")
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  user_id     String
+  type        String
+  title       String
+  message     String?
+  data        Json?
+  is_read     Boolean   @default(false)
+  read_at     DateTime?
+  created_at  DateTime  @default(now())
+
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("notifications")
+}

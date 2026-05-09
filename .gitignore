@@ -1,0 +1,58 @@
+# ===== OS / Editor =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ===== API (Bun/Node/Express) =====
+api/node_modules/
+api/dist/
+api/.env
+api/package-lock.json
+
+# ===== API (Prisma) =====
+api/prisma/migrations/*_*/
+
+# ===== App (Expo React Native) =====
+app/node_modules/
+app/.expo/
+app/.expo-shared/
+app/web-build/
+app/dist/
+app/.cache/
+app/*.jks
+app/*.keystore
+app/app.bundle
+app/app.*.map
+app/package-lock.json
+
+# ===== Firmware (Arduino/ESP8266) =====
+firmware/build/
+firmware/*.hex
+firmware/*.bin
+firmware/*.elf
+firmware/*.o
+firmware/.pio/
+
+# ===== Mosquitto =====
+mosquitto/data/
+mosquitto/log/
+
+# ===== Docker =====
+postgres_data/
+
+# ===== Logs =====
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== Secrets =====
+.env
+.env.local
+.env.*.local
