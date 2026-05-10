@@ -38,7 +38,7 @@ export class WebSocketService {
 
       ws.on('close', () => {
         if (ws.isEsp && ws.macAddress) {
-          this.handleEspDisconnect(ws.macAddress);
+          this.handleEspDisconnect(ws.macAddress, ws);
         }
         if (ws.userId) {
           this.clients.get(ws.userId)?.delete(ws);
@@ -249,14 +249,17 @@ export class WebSocketService {
     }
   }
 
-  private handleEspDisconnect(mac: string): void {
-    this.espClients.delete(mac);
-    console.log(`🔌 ESP disconnected: ${mac}`);
+  private handleEspDisconnect(mac: string, ws: WSClient): void {
+    const current = this.espClients.get(mac);
+    if (current === ws) {
+      this.espClients.delete(mac);
+    }
+    console.log(`🔌 ESP disconnected: ${mac} (wasCurrent=${current === ws})`);
 
     prisma.espDevice.findUnique({
       where: { mac_address: mac },
     }).then((espDevice) => {
-      if (espDevice) {
+      if (espDevice && !this.espClients.has(mac)) {
         prisma.espDevice.update({
           where: { id: espDevice.id },
           data: { is_online: false },
