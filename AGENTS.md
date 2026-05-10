@@ -11,7 +11,7 @@ The ESP8266 connects to the backend API via **WebSocket** (not MQTT). The app co
 1. `docker compose up -d` (Postgres 16 :5432, Mosquitto 2 :1883/:9001 — Mosquitto optional)
 2. `cp api/.env.example api/.env && cd api && bun install && bunx prisma migrate dev && bun run dev`
 3. `cd app && yarn && npx expo start` — **yarn only** (existing `package-lock.json` is stale, ignore it)
-4. Flash `firmware/home_automation.ino` to ESP8266 after updating `firmware/config.h`
+4. Flash `firmware/home_automation/home_automation.ino` to ESP8266 after updating `firmware/home_automation/config.h`
 
 ## Developer Commands
 
@@ -107,10 +107,9 @@ No build system — flash via Arduino IDE or PlatformIO after editing `config.h`
 ## Architecture Gotchas
 
 - **Bun runtime** (not Node), **Express 5** (not v4), **Zod v4** (not v3) — APIs differ from older versions
-- **WebSocket at `/ws`** handles both app (auth by userId) and ESP (auth by MAC). Single `WebSocketService` in `src/utils/websocket.ts`
+- **WebSocket at `/ws`** handles both app (auth by JWT token: `{ type: 'auth', token: '<jwt>' }`) and ESP (auth by MAC: `{ type: 'esp_auth', mac: 'AA:BB:CC:DD:EE:FF' }`). Single `WebSocketService` in `src/utils/websocket.ts`
 - **`EspDevice` holds the MAC address**, not `Device` — `Device` links to `EspDevice` via FK
 - **Schedule service is in-memory cron** — state lost on crash, reloads on start
-- **`react-native-reanimated/plugin`** in `babel.config.js` — do not remove
 - **App server URL** is configured at runtime via settings store, not in `app.json`
 - `validate(schema)` validates body+query+params but does NOT replace `req.body`; `validateBody(schema)` body-only and REPLACES `req.body`
 - Non-null assertions common: `req.userId!` (AuthRequest defines it as optional)

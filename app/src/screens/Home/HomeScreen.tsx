@@ -119,10 +119,12 @@ const HomeScreen = () => {
         if (activeFloor) {
           const ld = activeFloor.layout_data as any;
           const lrArr = (ld?.rooms && Array.isArray(ld.rooms)) ? ld.rooms : [];
+          const dbDev = floors.flatMap(f => (f.rooms || []).flatMap(r => r.devices || [])).find(d => d.id === deviceId);
+          const devName = dbDev?.name;
           let changed = false;
           const updatedRooms = lrArr.map((lr: any) => {
             if (!Array.isArray(lr.devices)) return lr;
-            const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId || d.dbDeviceId === deviceId || d.name === devices.find(dd => dd.id === deviceId)?.name);
+            const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId || d.dbDeviceId === deviceId || (devName && d.name === devName));
             if (devIdx < 0) return lr;
             changed = true;
             const updatedDevices = [...lr.devices];
