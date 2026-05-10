@@ -88,4 +88,9 @@ export const deviceService = {
     const res = await api.post('/devices/esp/' + id + '/claim', { name });
     return res.data?.data;
   },
+
+  async sendEspCommand(espId: string, pin: number, state: Record<string, unknown>): Promise<any> {
+    const res = await api.post('/devices/esp/' + espId + '/command', { pin, state });
+    return res.data?.data;
+  },
 };

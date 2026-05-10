@@ -332,7 +332,9 @@ export class WebSocketService {
 
   isEspConnected(mac: string): boolean {
     const ws = this.espClients.get(mac);
-    return ws !== undefined && ws.readyState === WebSocket.OPEN;
+    const connected = ws !== undefined && ws.readyState === WebSocket.OPEN;
+    console.log(`🔍 ESP connection check: mac=${mac} found=${ws !== undefined} readyState=${ws?.readyState} open=${WebSocket.OPEN} result=${connected} totalClients=${this.espClients.size}`);
+    return connected;
   }
 
   broadcastToUser(userId: string, data: { type: string; payload: unknown }): void {

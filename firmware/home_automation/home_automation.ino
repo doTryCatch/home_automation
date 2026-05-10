@@ -21,12 +21,33 @@ void setupPins() {
 }
 
 void onCommand(int pin, JsonObject state) {
+  Serial.println("====== COMMAND RECEIVED ======");
+  Serial.print("[CMD] Pin: D");
+  Serial.println(pin);
+
+  if (state.containsKey("power")) {
+    Serial.print("[CMD] Power: ");
+    Serial.println(state["power"].as<bool>() ? "ON" : "OFF");
+  }
+  if (state.containsKey("brightness")) {
+    Serial.print("[CMD] Brightness: ");
+    Serial.println(state["brightness"].as<int>());
+  }
+
   devices.handleCommand(pin, state);
+
+  Serial.print("[CMD] Pin D");
+  Serial.print(pin);
+  Serial.print(" actual state: ");
+  Serial.println(devices.getPinState(pin) ? "ON (HIGH)" : "OFF (LOW)");
+  Serial.println("==============================");
 
   StaticJsonDocument<128> statusDoc;
   JsonObject status = statusDoc.to<JsonObject>();
   status["power"] = devices.getPinState(pin);
   ws.sendPinStatus(pin, status);
+  Serial.print("[CMD] Sent status back to server for pin D");
+  Serial.println(pin);
 }
 
 void onConfig(String action, JsonObject config) {

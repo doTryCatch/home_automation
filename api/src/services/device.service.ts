@@ -7,6 +7,7 @@ import {
   UpdateDeviceInput,
   ControlDeviceInput,
   CreateDeviceTypeInput,
+  EspCommandInput,
 } from '../validators';
 
 export class DeviceService {
@@ -342,6 +343,24 @@ export class DeviceService {
     });
 
     return { message: 'Device deleted successfully' };
+  }
+
+  async sendEspCommand(userId: string, espId: string, data: EspCommandInput) {
+    const espDevice = await prisma.espDevice.findFirst({
+      where: { id: espId, user_id: userId },
+    });
+
+    if (!espDevice) throw new Error('ESP device not found');
+
+    console.log(`📡 ESP command request: esp=${espId} pin=${data.pin} mac=${espDevice.mac_address} connected=${webSocketService.isEspConnected(espDevice.mac_address)}`);
+
+    if (!webSocketService.isEspConnected(espDevice.mac_address)) {
+      throw new Error('ESP device is offline');
+    }
+
+    webSocketService.sendCommandToEsp(espDevice.mac_address, data.pin, data.state);
+
+    return { success: true, message: 'Command sent', pin: data.pin, state: data.state };
   }
 
   async createDeviceType(userId: string, data: CreateDeviceTypeInput) {

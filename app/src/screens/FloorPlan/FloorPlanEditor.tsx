@@ -31,6 +31,8 @@ export interface PlacedDevice {
   rx: number;
   ry: number;
   isOn?: boolean;
+  espDeviceId?: string;
+  espPin?: number;
 }
 
 export type EditorMode = 'draw' | 'select' | 'device';

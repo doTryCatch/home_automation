@@ -7,6 +7,7 @@ import {
   UpdateDeviceInput,
   ControlDeviceInput,
   CreateDeviceTypeInput,
+  EspCommandInput,
 } from '../validators';
 import { ApiResponse } from '../types';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -216,6 +217,26 @@ export class DeviceController {
           success: false,
           message: error.message,
           error: 'DEVICE_DELETE_ERROR',
+        });
+      }
+    }
+  }
+
+  async sendEspCommand(req: AuthRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      const data: EspCommandInput = req.body;
+      const result = await deviceService.sendEspCommand(req.userId!, req.params.id, data);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+          error: 'ESP_COMMAND_ERROR',
         });
       }
     }

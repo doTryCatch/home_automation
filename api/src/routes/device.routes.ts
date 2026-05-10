@@ -8,6 +8,7 @@ import {
   updateDeviceSchema,
   controlDeviceSchema,
   createDeviceTypeSchema,
+  espCommandSchema,
 } from '../validators';
 import { authMiddleware } from '../middleware';
 
@@ -50,6 +51,12 @@ router.delete(
 router.post(
   '/esp/:id/claim',
   DeviceController.claimEspDevice
+);
+
+router.post(
+  '/esp/:id/command',
+  validateBody(espCommandSchema),
+  DeviceController.sendEspCommand
 );
 
 router.post(

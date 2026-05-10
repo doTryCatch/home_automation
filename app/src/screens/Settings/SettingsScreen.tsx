@@ -236,7 +236,7 @@ const SettingsScreen = () => {
               <MaterialCommunityIcons name="plus-circle" size={24} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
-          {espDevices.map(d => renderEspDevice({ item: d }))}
+          {espDevices.map(d => <View key={d.id}>{renderEspDevice({ item: d })}</View>)}
           {espDevices.length === 0 && <Text style={styles.emptyText}>No ESP devices registered</Text>}
         </View>
 

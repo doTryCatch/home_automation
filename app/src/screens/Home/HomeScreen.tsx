@@ -76,12 +76,8 @@ const HomeScreen = () => {
           if (targetDevice) break;
         }
         if (targetDevice) {
-          const allDbDevices = floors.flatMap(f => (f.rooms || []).flatMap(r => r.devices || []));
-          const matchingDb = allDbDevices.find(d => d.name === targetDevice.name && d.esp_device?.is_online);
-          if (matchingDb) {
-            await deviceService.control(matchingDb.id, { power: !isOn });
-            await loadHome();
-          } else {
+          if (targetDevice.espDeviceId && targetDevice.espPin !== undefined) {
+            await deviceService.sendEspCommand(targetDevice.espDeviceId, targetDevice.espPin, { power: !isOn });
             const updatedRooms = rooms.map((lr: any) => {
               if (!Array.isArray(lr.devices)) return lr;
               const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
@@ -94,6 +90,26 @@ const HomeScreen = () => {
               layout_data: { ...ld, rooms: updatedRooms },
             } as any);
             await loadHome();
+          } else {
+            const allDbDevices = floors.flatMap(f => (f.rooms || []).flatMap(r => r.devices || []));
+            let matchingDb = allDbDevices.find(d => d.name === targetDevice.name && d.esp_device?.is_online);
+            if (matchingDb) {
+              await deviceService.control(matchingDb.id, { power: !isOn });
+              await loadHome();
+            } else {
+              const updatedRooms = rooms.map((lr: any) => {
+                if (!Array.isArray(lr.devices)) return lr;
+                const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
+                if (devIdx < 0) return lr;
+                const updatedDevices = [...lr.devices];
+                updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
+                return { ...lr, devices: updatedDevices };
+              });
+              await floorService.update(floorId, {
+                layout_data: { ...ld, rooms: updatedRooms },
+              } as any);
+              await loadHome();
+            }
           }
         }
       } else {

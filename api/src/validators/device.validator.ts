@@ -35,6 +35,11 @@ export const controlDeviceSchema = z.object({
   source: z.enum(['manual', 'schedule', 'automation']).default('manual'),
 });
 
+export const espCommandSchema = z.object({
+  pin: z.number().int().min(0).max(8, 'Pin must be between 0-8 (D0-D8)'),
+  state: z.record(z.string(), z.unknown()),
+});
+
 export const createDeviceTypeSchema = z.object({
   name: z.string().min(1, 'Type name is required'),
   icon: z.string().min(1, 'Icon is required'),
@@ -47,4 +52,5 @@ export type UpdateEspInput = z.infer<typeof updateEspSchema>;
 export type CreateDeviceInput = z.infer<typeof createDeviceSchema>;
 export type UpdateDeviceInput = z.infer<typeof updateDeviceSchema>;
 export type ControlDeviceInput = z.infer<typeof controlDeviceSchema>;
+export type EspCommandInput = z.infer<typeof espCommandSchema>;
 export type CreateDeviceTypeInput = z.infer<typeof createDeviceTypeSchema>;

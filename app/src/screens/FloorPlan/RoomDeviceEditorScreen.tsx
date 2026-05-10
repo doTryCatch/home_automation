@@ -24,7 +24,7 @@ type Props = { route: { params: { floorId: string; roomId: string } }; navigatio
 
 export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
   const { floorId, roomId } = route.params;
-  const { floors, loadHome } = useHomeStore();
+  const { floors, loadHome, espDevices } = useHomeStore();
   const [saving, setSaving] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [pendingPos, setPendingPos] = useState<{ rx: number; ry: number } | null>(null);
@@ -35,6 +35,14 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
   const [dirty, setDirty] = useState(false);
   const [roomName, setRoomName] = useState('');
   const [roomColor, setRoomColor] = useState('#4ECDC4');
+  const [selectedDevType, setSelectedDevType] = useState<string | null>(null);
+  const [selectedEspId, setSelectedEspId] = useState('');
+  const [selectedPin, setSelectedPin] = useState('');
+
+  const selectedEspObj = espDevices.find((e: any) => e.id === selectedEspId);
+  const usedPins = new Set(
+    (selectedEspObj?.devices || []).map((d: any) => d.pin)
+  );
 
   const floor = floors.find((f: Floor) => f.id === floorId);
 
@@ -100,6 +108,9 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
 
     setPendingPos(rel);
     setShowDevicePicker(true);
+    setSelectedDevType(null);
+    setSelectedEspId('');
+    setSelectedPin('');
   }, [devices, s2c, canvasToRelative]);
 
   const handleMove = useCallback((e: GestureResponderEvent) => {
@@ -148,12 +159,21 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
       rx: pendingPos.rx,
       ry: pendingPos.ry,
     };
+
+    if (selectedEspId && selectedPin !== '') {
+      newDev.espDeviceId = selectedEspId;
+      newDev.espPin = parseInt(selectedPin, 10);
+    }
+
     const updated = [...devices, newDev];
     setDevices(updated);
     checkDirty(updated);
     setShowDevicePicker(false);
     setPendingPos(null);
-  }, [devices, pendingPos, checkDirty]);
+    setSelectedDevType(null);
+    setSelectedEspId('');
+    setSelectedPin('');
+  }, [devices, pendingPos, checkDirty, selectedEspId, selectedPin]);
 
   const removeDevice = useCallback((devId: string) => {
     const updated = devices.filter(d => d.id !== devId);
@@ -280,6 +300,12 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
                   fill={on ? COLORS.primary : '#636E72'} fontWeight="500">
                   {dev.name}
                 </SvgText>
+                {dev.espPin !== undefined && (
+                  <SvgText x={dx} y={dy - DEV_R - 6} textAnchor="middle" fontSize="7"
+                    fill={COLORS.textLight} fontWeight="600">
+                    D{dev.espPin}
+                  </SvgText>
+                )}
               </G>
             );
           })}
@@ -310,9 +336,15 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
           <View style={s.modalContent} onStartShouldSetResponder={() => true}>
             <Text style={s.modalTitle}>Place Device</Text>
             <Text style={s.modalSub}>Choose a device type to place at the tapped position</Text>
+
+            <Text style={s.stepLabel}>1. Device Type</Text>
             <View style={s.deviceGrid}>
               {DEVICE_TYPES.map(dt => (
-                <TouchableOpacity key={dt.type} style={s.pickBtn} onPress={() => addDevice(dt)}>
+                <TouchableOpacity
+                  key={dt.type}
+                  style={[s.pickBtn, selectedDevType === dt.type && s.pickBtnSelected]}
+                  onPress={() => setSelectedDevType(dt.type)}
+                >
                   <View style={[s.pickIcon, { backgroundColor: dt.color + '30' }]}>
                     <Text style={[s.pickLetter, { color: dt.color }]}>{dt.letter}</Text>
                   </View>
@@ -320,9 +352,82 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
                 </TouchableOpacity>
               ))}
             </View>
-            <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowDevicePicker(false); setPendingPos(null); }}>
-              <Text style={s.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
+
+            {selectedDevType && (
+              <>
+                <Text style={s.stepLabel}>2. Link to ESP (optional)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}>
+                  <TouchableOpacity
+                    style={[s.espChip, selectedEspId === '' && s.espChipSelected]}
+                    onPress={() => { setSelectedEspId(''); setSelectedPin(''); }}
+                  >
+                    <Text style={[s.espChipText, selectedEspId === '' && s.espChipTextSelected]}>Skip</Text>
+                  </TouchableOpacity>
+                  {espDevices.map((esp: any) => (
+                    <TouchableOpacity
+                      key={esp.id}
+                      style={[s.espChip, selectedEspId === esp.id && s.espChipSelected]}
+                      onPress={() => { setSelectedEspId(esp.id); setSelectedPin(''); }}
+                    >
+                      <Text style={[s.espChipText, selectedEspId === esp.id && s.espChipTextSelected]}>{esp.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            {selectedEspId && (
+              <>
+                <Text style={s.stepLabel}>3. Select Pin</Text>
+                <View style={s.pinGrid}>
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const isUsed = usedPins.has(i);
+                    const isSelected = selectedPin === String(i);
+                    const occupyingDevice = selectedEspObj?.devices?.find((d: any) => d.pin === i);
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={[
+                          s.pinChip,
+                          isSelected && s.pinChipSelected,
+                          isUsed && s.pinChipUsed,
+                        ]}
+                        disabled={isUsed}
+                        onPress={() => setSelectedPin(String(i))}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          s.pinChipText,
+                          isSelected && s.pinChipTextSelected,
+                          isUsed && s.pinChipTextUsed,
+                        ]}>
+                          D{i}
+                        </Text>
+                        {isUsed && occupyingDevice ? (
+                          <Text style={s.pinChipLabel} numberOfLines={1}>
+                            {occupyingDevice.name}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowDevicePicker(false); setPendingPos(null); }}>
+                <Text style={s.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              {selectedDevType && (
+                <TouchableOpacity
+                  style={s.confirmBtn}
+                  onPress={() => addDevice(DEVICE_TYPES.find(dt => dt.type === selectedDevType)!)}
+                >
+                  <Text style={s.confirmBtnText}>Place</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -381,4 +486,31 @@ const s = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md, backgroundColor: COLORS.background,
   },
   cancelBtnText: { color: COLORS.textSecondary, fontWeight: '600', fontSize: FONT_SIZE.md },
+  stepLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.text, marginTop: SPACING.md, marginBottom: SPACING.xs },
+  chipRow: { maxHeight: 44, marginBottom: SPACING.sm },
+  espChip: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.background, marginRight: 8,
+  },
+  espChipSelected: { backgroundColor: COLORS.primary },
+  espChipText: { fontSize: FONT_SIZE.xs, fontWeight: '600', color: COLORS.textSecondary },
+  espChipTextSelected: { color: '#fff' },
+  pinGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: SPACING.md },
+  pinChip: {
+    width: 56, paddingVertical: 8, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.background, alignItems: 'center',
+  },
+  pinChipSelected: { backgroundColor: COLORS.primary },
+  pinChipUsed: { opacity: 0.4 },
+  pinChipText: { fontSize: FONT_SIZE.xs, fontWeight: '700', color: COLORS.text },
+  pinChipTextSelected: { color: '#fff' },
+  pinChipTextUsed: { color: COLORS.textLight },
+  pinChipLabel: { fontSize: 8, color: COLORS.textLight, marginTop: 2 },
+  modalActions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm },
+  confirmBtn: {
+    flex: 1, alignItems: 'center', paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md, backgroundColor: COLORS.primary,
+  },
+  confirmBtnText: { color: '#fff', fontWeight: '700', fontSize: FONT_SIZE.md },
+  pickBtnSelected: { backgroundColor: COLORS.primary + '20', borderWidth: 2, borderColor: COLORS.primary },
 });
