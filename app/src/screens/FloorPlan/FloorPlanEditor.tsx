@@ -310,11 +310,11 @@ export default function FloorPlanEditor({ rooms, onChange, onRoomTap, onSave, sa
         <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet">
           <Defs>
             <Pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <Line x1="40" y1="0" x2="40" y2="40" stroke="#D5DBDF" strokeWidth="0.5" />
-              <Line x1="0" y1="40" x2="40" y2="40" stroke="#D5DBDF" strokeWidth="0.5" />
+              <Line x1="40" y1="0" x2="40" y2="40" stroke="#1A1A2E" strokeWidth="0.5" />
+              <Line x1="0" y1="40" x2="40" y2="40" stroke="#1A1A2E" strokeWidth="0.5" />
             </Pattern>
           </Defs>
-          <Rect x={0} y={0} width={VW} height={VH} fill="#EEF1F5" />
+          <Rect x={0} y={0} width={VW} height={VH} fill="#08080F" />
           <Rect x={0} y={0} width={VW} height={VH} fill="url(#grid)" />
 
           {rooms.map(room => {
@@ -325,11 +325,11 @@ export default function FloorPlanEditor({ rooms, onChange, onRoomTap, onSave, sa
               <G key={room.id}>
                 <Rect
                   x={room.x} y={room.y} width={room.width} height={room.height}
-                  fill={room.color + '30'} stroke={sel ? '#2D3436' : room.color}
+                  fill={room.color + '12'} stroke={sel ? '#EAEAEA' : room.color}
                   strokeWidth={sel ? 2.5 : 1.5} rx={4}
                 />
-                <SvgText x={cx} y={cy - 8} textAnchor="middle" fontSize="13" fill="#2D3436" fontWeight="600">{room.name}</SvgText>
-                <SvgText x={cx} y={cy + 8} textAnchor="middle" fontSize="9" fill="#636E72">{room.devices.length} device{room.devices.length !== 1 ? 's' : ''}</SvgText>
+                <SvgText x={cx} y={cy - 8} textAnchor="middle" fontSize="13" fill="#EAEAEA" fontWeight="600">{room.name}</SvgText>
+                <SvgText x={cx} y={cy + 8} textAnchor="middle" fontSize="9" fill="#8892B0">{room.devices.length} device{room.devices.length !== 1 ? 's' : ''}</SvgText>
 
                 {room.devices.map(dev => {
                   const dx = room.x + dev.rx * room.width;
@@ -337,15 +337,15 @@ export default function FloorPlanEditor({ rooms, onChange, onRoomTap, onSave, sa
                   const dt = DEVICE_TYPES.find(t => t.type === dev.type) || DEVICE_TYPES[0];
                   return (
                     <G key={dev.id}>
-                      <Circle cx={dx} cy={dy} r={14} fill="#fff" stroke={dt.color} strokeWidth={2} />
+                      <Circle cx={dx} cy={dy} r={14} fill="#141420" stroke={dt.color} strokeWidth={2} />
                       <SvgText x={dx} y={dy + 1} textAnchor="middle" fontSize="11" fontWeight="700" fill={dt.color}>{dt.letter}</SvgText>
-                      <SvgText x={dx} y={dy + 24} textAnchor="middle" fontSize="7" fill="#636E72">{dev.name}</SvgText>
+                      <SvgText x={dx} y={dy + 24} textAnchor="middle" fontSize="7" fill="#8892B0">{dev.name}</SvgText>
                     </G>
                   );
                 })}
 
                 {sel && getCorners(room).map((c, i) => (
-                  <Circle key={i} cx={c.x} cy={c.y} r={HANDLE_R} fill="#fff" stroke={COLORS.primary} strokeWidth={2.5} />
+                  <Circle key={i} cx={c.x} cy={c.y} r={HANDLE_R} fill="#141420" stroke={COLORS.primary} strokeWidth={2.5} />
                 ))}
               </G>
             );
@@ -459,7 +459,7 @@ const s = StyleSheet.create({
   saveBtnTextActive: { color: '#fff' },
   hint: { backgroundColor: COLORS.surface, paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm },
   hintText: { fontSize: FONT_SIZE.xs, color: COLORS.textSecondary },
-  canvas: { flex: 1, backgroundColor: '#D5DBDF' },
+  canvas: { flex: 1, backgroundColor: '#08080F' },
   bottomPanel: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,

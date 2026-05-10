@@ -15,6 +15,7 @@ export class WebSocketService {
   private wss: WebSocketServer | null = null;
   private clients: Map<string, Set<WSClient>> = new Map();
   private espClients: Map<string, WSClient> = new Map();
+  private pendingCommands: Map<string, { resolve: (state: Record<string, unknown>) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }> = new Map();
 
   initialize(server: Server): void {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -176,6 +177,16 @@ export class WebSocketService {
     const mac = ws.macAddress || (data.mac as string);
     if (!mac || data.pin === undefined) return;
 
+    if (data.command_id) {
+      const commandId = data.command_id as string;
+      const pending = this.pendingCommands.get(commandId);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.pendingCommands.delete(commandId);
+        pending.resolve(data.state as Record<string, unknown>);
+      }
+    }
+
     const espDevice = await prisma.espDevice.findUnique({
       where: { mac_address: mac },
     });
@@ -317,6 +328,33 @@ export class WebSocketService {
       timestamp: new Date().toISOString(),
     }));
     return true;
+  }
+
+  sendCommandAndWait(mac: string, pin: number, state: Record<string, unknown>, timeoutMs = 5000): Promise<Record<string, unknown>> {
+    return new Promise((resolve, reject) => {
+      const ws = this.espClients.get(mac);
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        reject(new Error('ESP device is offline'));
+        return;
+      }
+
+      const commandId = `${mac}-${pin}-${Date.now()}`;
+
+      const timer = setTimeout(() => {
+        this.pendingCommands.delete(commandId);
+        reject(new Error('ESP did not confirm state change in time'));
+      }, timeoutMs);
+
+      this.pendingCommands.set(commandId, { resolve, reject, timer });
+
+      ws.send(JSON.stringify({
+        type: 'esp_command',
+        command_id: commandId,
+        pin,
+        state,
+        timestamp: new Date().toISOString(),
+      }));
+    });
   }
 
   sendConfigToEsp(mac: string, action: string, payload: Record<string, unknown>): boolean {

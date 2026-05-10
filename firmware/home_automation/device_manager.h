@@ -5,6 +5,8 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
+static const int GPIO_MAP[MAX_PINS] = {16, 5, 4, 0, 2, 14, 12, 13, 15};
+
 struct PinConfig {
   int pin;
   String mode;
@@ -36,6 +38,7 @@ public:
 
   void addPin(int pin, const String& mode, const String& type = "") {
     if (pinCount >= MAX_PINS) return;
+    if (pin < 0 || pin >= MAX_PINS) return;
     if (findPin(pin) >= 0) return;
 
     pins[pinCount].pin = pin;
@@ -43,17 +46,20 @@ public:
     pins[pinCount].type = type;
     pins[pinCount].active = true;
 
+    int gpio = GPIO_MAP[pin];
     if (mode == "output" || mode == "pwm") {
-      pinMode(pin, OUTPUT);
-      digitalWrite(pin, RELAY_OFF);
+      pinMode(gpio, OUTPUT);
+      digitalWrite(gpio, RELAY_OFF);
     } else if (mode == "input") {
-      pinMode(pin, INPUT_PULLUP);
+      pinMode(gpio, INPUT_PULLUP);
     }
 
     pinCount++;
-    Serial.print("Pin ");
+    Serial.print("Pin D");
     Serial.print(pin);
-    Serial.print(" configured as ");
+    Serial.print(" (GPIO");
+    Serial.print(gpio);
+    Serial.print(") configured as ");
     Serial.println(mode);
   }
 
@@ -61,7 +67,8 @@ public:
     int idx = findPin(pin);
     if (idx >= 0) {
       if (pins[idx].mode == "output") {
-        digitalWrite(pin, RELAY_OFF);
+        int gpio = GPIO_MAP[pin];
+        digitalWrite(gpio, RELAY_OFF);
       }
       pins[idx].active = false;
     }
@@ -72,12 +79,15 @@ public:
     if (idx < 0 || !pins[idx].active) return false;
     if (pins[idx].mode != "output" && pins[idx].mode != "pwm") return false;
 
-    digitalWrite(pin, state ? RELAY_ON : RELAY_OFF);
+    int gpio = GPIO_MAP[pin];
+    digitalWrite(gpio, state ? RELAY_ON : RELAY_OFF);
     pinStates[idx] = state;
 
-    Serial.print("Pin ");
+    Serial.print("Pin D");
     Serial.print(pin);
-    Serial.print(" -> ");
+    Serial.print(" (GPIO");
+    Serial.print(gpio);
+    Serial.print(") -> ");
     Serial.println(state ? "ON" : "OFF");
 
     return true;
@@ -88,10 +98,13 @@ public:
     if (idx < 0 || !pins[idx].active) return false;
     if (pins[idx].mode != "pwm") return false;
 
-    analogWrite(pin, constrain(value, 0, 255));
-    Serial.print("Pin ");
+    int gpio = GPIO_MAP[pin];
+    analogWrite(gpio, constrain(value, 0, 255));
+    Serial.print("Pin D");
     Serial.print(pin);
-    Serial.print(" PWM -> ");
+    Serial.print(" (GPIO");
+    Serial.print(gpio);
+    Serial.print(") PWM -> ");
     Serial.println(value);
     return true;
   }

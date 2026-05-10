@@ -279,19 +279,19 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
         <Svg width="100%" height="100%" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet">
           <Defs>
             <Pattern id="gridR" width="20" height="20" patternUnits="userSpaceOnUse">
-              <Line x1="20" y1="0" x2="20" y2="20" stroke="#D0D5DA" strokeWidth="0.4" />
-              <Line x1="0" y1="20" x2="20" y2="20" stroke="#D0D5DA" strokeWidth="0.4" />
+              <Line x1="20" y1="0" x2="20" y2="20" stroke="#1E1E35" strokeWidth="0.4" />
+              <Line x1="0" y1="20" x2="20" y2="20" stroke="#1E1E35" strokeWidth="0.4" />
             </Pattern>
             <RadialGradient id="glowR" cx="50%" cy="50%" r="50%">
               <Stop offset="0%" stopColor={COLORS.primary} stopOpacity="0.6" />
               <Stop offset="100%" stopColor={COLORS.primary} stopOpacity="0" />
             </RadialGradient>
           </Defs>
-          <Rect x={0} y={0} width={VW} height={VH} fill="#E4E8EC" />
+          <Rect x={0} y={0} width={VW} height={VH} fill="#08080F" />
           <Rect x={PAD} y={PAD} width={INNER_W} height={INNER_H} fill="url(#gridR)" />
           <Rect
             x={PAD} y={PAD} width={INNER_W} height={INNER_H}
-            fill="#F5F7F9" stroke={roomColor} strokeWidth="3" rx={10}
+            fill="#0D0D18" stroke={roomColor} strokeWidth="3" rx={10}
           />
           <SvgText
             x={VW / 2} y={PAD + 22}
@@ -309,16 +309,16 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
               <G key={dev.id}>
                 {on && <Circle cx={dx} cy={dy} r={DEV_R * 2} fill="url(#glowR)" />}
                 <Circle cx={dx} cy={dy} r={DEV_R}
-                  fill={on ? COLORS.primary : dt.color + '50'}
-                  stroke={on ? COLORS.primary : dt.color}
+                  fill={on ? COLORS.primary : '#1C1C30'}
+                  stroke={on ? COLORS.primary : COLORS.textSecondary}
                   strokeWidth={2}
                 />
                 <SvgText x={dx} y={dy + 5} textAnchor="middle" fontSize="15" fontWeight="700"
-                  fill={on ? '#fff' : dt.color}>
+                  fill={on ? '#fff' : COLORS.textSecondary}>
                   {dt.letter}
                 </SvgText>
                 <SvgText x={dx} y={dy + DEV_R + 12} textAnchor="middle" fontSize="8"
-                  fill={on ? COLORS.primary : '#636E72'} fontWeight="500">
+                  fill={on ? COLORS.primary : '#4A4A6A'} fontWeight="500">
                   {dev.name}
                 </SvgText>
                 {dev.espPin !== undefined && (
@@ -474,7 +474,7 @@ const s = StyleSheet.create({
   saveBtnText: { fontSize: FONT_SIZE.xs, fontWeight: '600', color: '#fff' },
   hintBar: { backgroundColor: COLORS.surface + 'CC', paddingHorizontal: SPACING.md, paddingVertical: 6 },
   hintText: { fontSize: FONT_SIZE.xs, color: COLORS.textSecondary, textAlign: 'center' },
-  canvas: { flex: 1, backgroundColor: '#D5DBDF' },
+  canvas: { flex: 1, backgroundColor: '#08080F' },
   strip: {
     maxHeight: 48, backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.sm, paddingVertical: 4,

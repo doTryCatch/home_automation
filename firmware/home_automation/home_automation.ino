@@ -10,15 +10,17 @@ WsClient ws;
 DeviceManager devices;
 
 void setupPins() {
-  devices.addPin(D0, "output", "relay");
-  devices.addPin(D1, "output", "relay");
-  devices.addPin(D2, "output", "relay");
-  devices.addPin(D3, "output", "relay");
-  devices.addPin(D5, "output", "relay");
-  devices.addPin(D6, "output", "relay");
-  devices.addPin(D7, "output", "relay");
-  devices.addPin(D8, "output", "relay");
+  devices.addPin(0, "output", "relay");
+  devices.addPin(1, "output", "relay");
+  devices.addPin(2, "output", "relay");
+  devices.addPin(3, "output", "relay");
+  devices.addPin(5, "output", "relay");
+  devices.addPin(6, "output", "relay");
+  devices.addPin(7, "output", "relay");
+  devices.addPin(8, "output", "relay");
 }
+
+String currentCommandId;
 
 void onCommand(int pin, JsonObject state) {
   Serial.println("====== COMMAND RECEIVED ======");
@@ -42,10 +44,10 @@ void onCommand(int pin, JsonObject state) {
   Serial.println(devices.getPinState(pin) ? "ON (HIGH)" : "OFF (LOW)");
   Serial.println("==============================");
 
-  StaticJsonDocument<128> statusDoc;
+  StaticJsonDocument<256> statusDoc;
   JsonObject status = statusDoc.to<JsonObject>();
   status["power"] = devices.getPinState(pin);
-  ws.sendPinStatus(pin, status);
+  ws.sendPinStatus(pin, status, currentCommandId);
   Serial.print("[CMD] Sent status back to server for pin D");
   Serial.println(pin);
 }

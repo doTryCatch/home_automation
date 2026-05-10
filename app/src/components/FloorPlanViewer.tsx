@@ -19,12 +19,12 @@ const VW = 800;
 const VH = 600;
 
 const DEVICE_TYPE_MAP: Record<string, { color: string; letter: string; icon: string }> = {
-  light: { color: '#F9CA24', letter: 'L', icon: 'lightbulb-outline' },
-  fan: { color: '#0984E3', letter: 'F', icon: 'fan' },
-  ac: { color: '#00CEC9', letter: 'A', icon: 'air-conditioner' },
-  tv: { color: '#6C5CE7', letter: 'T', icon: 'television' },
-  switch: { color: '#00B894', letter: 'S', icon: 'toggle-switch' },
-  motor: { color: '#E17055', letter: 'M', icon: 'engine' },
+  light: { color: '#FFD740', letter: 'L', icon: 'lightbulb-outline' },
+  fan: { color: '#448AFF', letter: 'F', icon: 'fan' },
+  ac: { color: '#00E5FF', letter: 'A', icon: 'air-conditioner' },
+  tv: { color: '#E040FB', letter: 'T', icon: 'television' },
+  switch: { color: '#69F0AE', letter: 'S', icon: 'toggle-switch' },
+  motor: { color: '#FF6E40', letter: 'M', icon: 'engine' },
 };
 
 interface WallPath {
@@ -242,11 +242,42 @@ const FloorPlanViewer: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }
         <Svg pointerEvents="none" width="100%" height="100%" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid meet">
           <Defs>
             <RadialGradient id="glowOn" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%" stopColor={COLORS.primary} stopOpacity="0.5" />
-              <Stop offset="100%" stopColor={COLORS.primary} stopOpacity="0" />
+              <Stop offset="0%" stopColor="#FF2E63" stopOpacity="0.6" />
+              <Stop offset="70%" stopColor="#FF2E63" stopOpacity="0.15" />
+              <Stop offset="100%" stopColor="#FF2E63" stopOpacity="0" />
+            </RadialGradient>
+            <RadialGradient id="glowOnLight" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#FFD740" stopOpacity="0.7" />
+              <Stop offset="60%" stopColor="#FFD740" stopOpacity="0.2" />
+              <Stop offset="100%" stopColor="#FFD740" stopOpacity="0" />
+            </RadialGradient>
+            <RadialGradient id="glowOnBlue" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#448AFF" stopOpacity="0.6" />
+              <Stop offset="70%" stopColor="#448AFF" stopOpacity="0.15" />
+              <Stop offset="100%" stopColor="#448AFF" stopOpacity="0" />
+            </RadialGradient>
+            <RadialGradient id="glowOnCyan" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#00E5FF" stopOpacity="0.6" />
+              <Stop offset="70%" stopColor="#00E5FF" stopOpacity="0.15" />
+              <Stop offset="100%" stopColor="#00E5FF" stopOpacity="0" />
+            </RadialGradient>
+            <RadialGradient id="glowOnPurple" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#E040FB" stopOpacity="0.6" />
+              <Stop offset="70%" stopColor="#E040FB" stopOpacity="0.15" />
+              <Stop offset="100%" stopColor="#E040FB" stopOpacity="0" />
+            </RadialGradient>
+            <RadialGradient id="glowOnGreen" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#69F0AE" stopOpacity="0.6" />
+              <Stop offset="70%" stopColor="#69F0AE" stopOpacity="0.15" />
+              <Stop offset="100%" stopColor="#69F0AE" stopOpacity="0" />
+            </RadialGradient>
+            <RadialGradient id="glowOnOrange" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#FF6E40" stopOpacity="0.6" />
+              <Stop offset="70%" stopColor="#FF6E40" stopOpacity="0.15" />
+              <Stop offset="100%" stopColor="#FF6E40" stopOpacity="0" />
             </RadialGradient>
           </Defs>
-          <Rect x={0} y={0} width={VW} height={VH} fill="#E8EDF2" rx="8" />
+          <Rect x={0} y={0} width={VW} height={VH} fill="#0D0D18" rx="8" />
 
           {hasLayoutRooms ? null : (floor.rooms || []).map(room => {
             if (!room.polygon_coords || room.polygon_coords.length < 3) return null;
@@ -257,11 +288,11 @@ const FloorPlanViewer: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }
               <G key={room.id}>
                 <Polygon
                   points={pointsStr(room.polygon_coords)}
-                  fill={hasOn ? room.color + '25' : '#E8ECF0'}
-                  stroke={room.color}
-                  strokeWidth="2"
+                  fill={hasOn ? room.color + '15' : '#12121F'}
+                  stroke={hasOn ? room.color : '#252540'}
+                  strokeWidth="1.5"
                 />
-                <SvgText x={cx} y={cy + 4} textAnchor="middle" fontSize="13" fill="#636E72" fontWeight="600">
+                <SvgText x={cx} y={cy + 4} textAnchor="middle" fontSize="13" fill="#8892B0" fontWeight="600">
                   {room.name}
                 </SvgText>
               </G>
@@ -273,45 +304,64 @@ const FloorPlanViewer: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }
             const dbHasOn = dbRoom ? (dbRoom.devices || []).some((d: any) => (d.state as any)?.power) : false;
             const placedHasOn = (lr.devices || []).some((d: any) => d.isOn);
             const hasOn = dbHasOn || placedHasOn;
-            const color = lr.color || (dbRoom?.color || '#4ECDC4');
+            const color = lr.color || (dbRoom?.color || '#FF2E63');
             const roomDevices: any[] = lr.devices || [];
             const scale = Math.min(lr.width / 340, lr.height / 220);
-            const devR = Math.max(6, Math.min(12, 10 * scale));
-            const letterSize = Math.max(5, Math.min(10, 8 * scale));
-            const labelSize = Math.max(4, Math.min(7, 6 * scale));
+            const devR = Math.max(7, Math.min(14, 12 * scale));
+            const letterSize = Math.max(6, Math.min(11, 9 * scale));
+            const labelSize = Math.max(4, Math.min(8, 7 * scale));
             return (
               <G key={lr.id}>
                 <Rect
                   x={lr.x} y={lr.y} width={lr.width} height={lr.height}
-                  fill={hasOn ? color + '18' : '#F5F7FA'}
-                  stroke={color} strokeWidth="2.5" rx={6}
+                  fill={hasOn ? '#0F0F1A' : '#0A0A14'}
+                  stroke={hasOn ? color : '#1E1E35'}
+                  strokeWidth={hasOn ? 2 : 1.5}
+                  rx={6}
                 />
+                {hasOn && (
+                  <Rect
+                    x={lr.x} y={lr.y} width={lr.width} height={lr.height}
+                    fill={color + '08'}
+                    stroke="none"
+                    rx={6}
+                  />
+                )}
                 <SvgText
                   x={lr.x + lr.width / 2} y={lr.y + 16}
-                  textAnchor="middle" fontSize="11" fill={color} fontWeight="700"
+                  textAnchor="middle" fontSize="11" fill={hasOn ? color : '#4A4A6A'} fontWeight="700"
                 >
                   {lr.name}
                 </SvgText>
                 {roomDevices.map((d: any) => {
                   const dx = lr.x + d.rx * lr.width;
                   const dy = lr.y + d.ry * lr.height;
-                  const dt = DEVICE_TYPE_MAP[d.type] || { color: '#B2BEC3', letter: '?', icon: 'devices' };
+                  const dt = DEVICE_TYPE_MAP[d.type] || { color: '#4A4A6A', letter: '?', icon: 'devices' };
                   const dbDev = dbRoom?.devices?.find((dd: any) => dd.name === d.name);
                   const devOn = d.isOn || (dbDev ? ((dbDev as any).state as any)?.power || false : false);
+                  const glowId = d.type === 'light' ? 'glowOnLight'
+                    : d.type === 'fan' ? 'glowOnBlue'
+                    : d.type === 'ac' ? 'glowOnCyan'
+                    : d.type === 'tv' ? 'glowOnPurple'
+                    : d.type === 'switch' ? 'glowOnGreen'
+                    : d.type === 'motor' ? 'glowOnOrange'
+                    : 'glowOn';
                   return (
                     <G key={d.id}>
-                      {devOn && <Circle cx={dx} cy={dy} r={devR * 2} fill="url(#glowOn)" />}
+                      {devOn && <Circle cx={dx} cy={dy} r={devR * 2.5} fill={`url(#${glowId})`} />}
+                      {devOn && <Circle cx={dx} cy={dy} r={devR * 1.5} fill={`url(#${glowId})`} />}
                       <Circle cx={dx} cy={dy} r={devR}
-                        fill={devOn ? COLORS.primary : dt.color + '50'}
-                        stroke={devOn ? COLORS.primary : dt.color}
-                        strokeWidth={devOn ? 2 : 1.5}
+                        fill={devOn ? dt.color : '#1C1C30'}
+                        stroke={devOn ? dt.color : dt.color}
+                        strokeWidth={devOn ? 2.5 : 1.5}
+                        opacity={devOn ? 1 : 0.9}
                       />
                       <SvgText x={dx} y={dy + letterSize * 0.35} textAnchor="middle"
-                        fontSize={letterSize} fontWeight="700" fill={devOn ? '#fff' : dt.color}>
+                        fontSize={letterSize} fontWeight="700" fill={devOn ? '#FFFFFF' : dt.color}>
                         {dt.letter}
                       </SvgText>
                       <SvgText x={dx} y={dy + devR + labelSize + 2} textAnchor="middle"
-                        fontSize={labelSize} fill={devOn ? COLORS.primary : '#636E72'} fontWeight="500">
+                        fontSize={labelSize} fill={devOn ? dt.color : '#8892B0'} fontWeight={devOn ? '700' : '500'}>
                         {d.name}
                       </SvgText>
                     </G>
@@ -330,13 +380,14 @@ const FloorPlanViewer: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }
               d.x >= r.x && d.x <= r.x + r.width && d.y >= r.y && d.y <= r.y + r.height
             );
             if (lr) return null;
-            const dt = DEVICE_TYPE_MAP[d.type] || { color: '#B2BEC3', letter: '?', icon: 'devices' };
+            const dt = DEVICE_TYPE_MAP[d.type] || { color: '#4A4A6A', letter: '?', icon: 'devices' };
+            const glowId = d.type === 'light' ? 'glowOnLight' : 'glowOn';
             return (
               <G key={d.id}>
-                {d.isOn && <Circle cx={d.x} cy={d.y} r={16} fill="url(#glowOn)" />}
+                {d.isOn && <Circle cx={d.x} cy={d.y} r={20} fill={`url(#${glowId})`} />}
                 <Circle cx={d.x} cy={d.y} r={8}
-                  fill={d.isOn ? COLORS.primary : dt.color + '50'}
-                  stroke={d.isOn ? COLORS.primary : dt.color}
+                  fill={d.isOn ? dt.color : '#1C1C30'}
+                  stroke={d.isOn ? dt.color : dt.color}
                   strokeWidth={d.isOn ? 2 : 1.5}
                 />
                 <SvgText x={d.x} y={d.y + 3} textAnchor="middle" fontSize="8" fontWeight="700" fill={d.isOn ? '#fff' : dt.color}>
@@ -355,7 +406,7 @@ const FloorPlanViewer: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }
         </View>
         <View style={s.stat}>
           <View style={[s.statDot, { backgroundColor: roomStats.onDevices > 0 ? COLORS.primary : COLORS.textLight }]} />
-          <Text style={s.statText}>{roomStats.onDevices} on</Text>
+          <Text style={[s.statText, roomStats.onDevices > 0 && s.statTextOn]}>{roomStats.onDevices} on</Text>
         </View>
       </View>
     </View>
@@ -365,7 +416,7 @@ const FloorPlanViewer: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }
 const s = StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    borderRadius: 16,
     overflow: 'hidden',
   },
   canvas: {
@@ -377,7 +428,9 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     gap: SPACING.xl,
     paddingVertical: SPACING.sm + 2,
-    backgroundColor: COLORS.surface,
+    backgroundColor: '#0D0D18',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
   stat: {
     flexDirection: 'row',
@@ -388,6 +441,9 @@ const s = StyleSheet.create({
     fontSize: FONT_SIZE.xs,
     color: COLORS.textSecondary,
     fontWeight: '600',
+  },
+  statTextOn: {
+    color: COLORS.primary,
   },
   statDot: {
     width: 7,

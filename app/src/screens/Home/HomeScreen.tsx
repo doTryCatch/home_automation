@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ActivityIndicator, TextInput, Modal, Dimensions, Alert,
+  RefreshControl, ActivityIndicator, TextInput, Modal, Dimensions, Alert, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -11,13 +11,13 @@ import { floorService } from '../../services/floorService';
 import { deviceService } from '../../services/deviceService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, DEVICE_ICONS } from '../../constants/theme';
 import { Floor, Room } from '../../types';
-import FloorPlanViewer from '../../components/FloorPlanViewer';
+import FloorMapView from '../../components/FloorMapView';
+import AnimatedDeviceChip from '../../components/AnimatedDeviceChip';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../navigation/MainNavigator';
 
 type HomeNav = NativeStackNavigationProp<MainStackParamList>;
 const { width: SCREEN_W } = Dimensions.get('window');
-const CARD_W = SCREEN_W - 32;
 
 const HomeScreen = () => {
   const { floors, espDevices, isLoading, pinnedFloorIds, loadHome, togglePin } = useHomeStore();
@@ -27,6 +27,8 @@ const HomeScreen = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [floorName, setFloorName] = useState('');
   const [creating, setCreating] = useState(false);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const flatRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     loadHome().catch(() => {});
@@ -62,6 +64,8 @@ const HomeScreen = () => {
   }, [navigation, floors]);
 
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set);
+  const [activeFloorIdx, setActiveFloorIdx] = useState(0);
+  const activeFloor = sortedFloors[activeFloorIdx] || null;
 
   const handleDeviceToggle = useCallback(async (deviceId: string, isOn: boolean, isPlaced?: boolean, floorId?: string, layoutData?: any) => {
     setTogglingIds(prev => new Set(prev).add(deviceId));
@@ -78,53 +82,29 @@ const HomeScreen = () => {
         if (targetDevice) {
           if (targetDevice.dbDeviceId) {
             await deviceService.control(targetDevice.dbDeviceId, { power: !isOn });
-            const updatedRooms = rooms.map((lr: any) => {
-              if (!Array.isArray(lr.devices)) return lr;
-              const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
-              if (devIdx < 0) return lr;
-              const updatedDevices = [...lr.devices];
-              updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
-              return { ...lr, devices: updatedDevices };
-            });
-            await floorService.update(floorId, {
-              layout_data: { ...ld, rooms: updatedRooms },
-            } as any);
-            await loadHome();
           } else if (targetDevice.espDeviceId && targetDevice.espPin !== undefined) {
             await deviceService.sendEspCommand(targetDevice.espDeviceId, targetDevice.espPin, { power: !isOn });
-            const updatedRooms = rooms.map((lr: any) => {
-              if (!Array.isArray(lr.devices)) return lr;
-              const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
-              if (devIdx < 0) return lr;
-              const updatedDevices = [...lr.devices];
-              updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
-              return { ...lr, devices: updatedDevices };
-            });
-            await floorService.update(floorId, {
-              layout_data: { ...ld, rooms: updatedRooms },
-            } as any);
-            await loadHome();
           } else {
             const allDbDevices = floors.flatMap(f => (f.rooms || []).flatMap(r => r.devices || []));
             let matchingDb = allDbDevices.find(d => d.name === targetDevice.name && d.esp_device?.is_online);
             if (matchingDb) {
               await deviceService.control(matchingDb.id, { power: !isOn });
               await loadHome();
-            } else {
-              const updatedRooms = rooms.map((lr: any) => {
-                if (!Array.isArray(lr.devices)) return lr;
-                const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
-                if (devIdx < 0) return lr;
-                const updatedDevices = [...lr.devices];
-                updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
-                return { ...lr, devices: updatedDevices };
-              });
-              await floorService.update(floorId, {
-                layout_data: { ...ld, rooms: updatedRooms },
-              } as any);
-              await loadHome();
+              return;
             }
           }
+          const updatedRooms = rooms.map((lr: any) => {
+            if (!Array.isArray(lr.devices)) return lr;
+            const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
+            if (devIdx < 0) return lr;
+            const updatedDevices = [...lr.devices];
+            updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
+            return { ...lr, devices: updatedDevices };
+          });
+          await floorService.update(floorId, {
+            layout_data: { ...ld, rooms: updatedRooms },
+          } as any);
+          await loadHome();
         }
       } else {
         await deviceService.control(deviceId, { power: !isOn });
@@ -149,6 +129,7 @@ const HomeScreen = () => {
         onPress: async () => {
           try {
             await floorService.delete(floor.id);
+            setActiveFloorIdx(0);
             await loadHome();
           } catch {
             Alert.alert('Error', 'Failed to delete floor');
@@ -174,52 +155,9 @@ const HomeScreen = () => {
     }
   };
 
-  const renderFloorCard = (floor: Floor) => {
-    const isPinned = pinnedFloorIds.includes(floor.id);
-    const ld = floor.layout_data as any;
-    const layoutRooms: any[] = (ld?.rooms && Array.isArray(ld.rooms)) ? ld.rooms : [];
-    const dbDevCount = (floor.rooms || []).reduce((s, r) => s + (r.devices?.length || 0), 0);
-    const dbOnCount = (floor.rooms || []).reduce((s, r) =>
-      s + (r.devices?.filter(d => (d.state as any)?.power).length || 0), 0);
-    const placedDevCount = layoutRooms.reduce((s: number, lr: any) => s + (Array.isArray(lr.devices) ? lr.devices.length : 0), 0);
-    const placedOnCount = layoutRooms.reduce((s: number, lr: any) =>
-      s + ((Array.isArray(lr.devices) ? lr.devices : []).filter((d: any) => d.isOn).length), 0);
-    const devCount = dbDevCount + placedDevCount;
-    const onCount = dbOnCount + placedOnCount;
-
-    return (
-      <View key={floor.id} style={s.card}>
-        <View style={s.cardHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.cardTitle}>{floor.name}</Text>
-            <Text style={s.cardSub}>{devCount} device{devCount !== 1 ? 's' : ''} · {onCount} on</Text>
-          </View>
-          <TouchableOpacity onPress={() => togglePin(floor.id)} style={s.pinBtn}>
-            <MaterialCommunityIcons name={isPinned ? 'pin' : 'pin-outline'} size={20} color={isPinned ? COLORS.primary : COLORS.textLight} />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => navigation.navigate('FloorEditor', { floorId: floor.id })}
-        >
-          <FloorPlanViewer floor={floor} onRoomPress={openRoom} onDeviceToggle={handleDeviceToggle} />
-        </TouchableOpacity>
-
-        <View style={s.cardFooter}>
-          <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
-            <TouchableOpacity onPress={() => handleDeleteFloor(floor)} style={s.deleteBtn}>
-              <MaterialCommunityIcons name="delete-outline" size={16} color={COLORS.danger} />
-              <Text style={s.deleteBtnText}>Delete</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('FloorEditor', { floorId: floor.id })} style={s.editBtn}>
-              <MaterialCommunityIcons name="pencil-outline" size={16} color={COLORS.primary} />
-              <Text style={s.editBtnText}>Edit Layout</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
+  const handleScrollEnd = (e: any) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+    setActiveFloorIdx(Math.min(idx, sortedFloors.length - 1));
   };
 
   return (
@@ -229,7 +167,7 @@ const HomeScreen = () => {
           <Text style={s.greeting}>Hello, {user?.name || 'User'}</Text>
           <Text style={s.subGreeting}>Your home at a glance</Text>
         </View>
-        <View style={[s.statusBadge, { backgroundColor: onlineCount === espDevices.length && espDevices.length > 0 ? COLORS.online + '15' : onlineCount > 0 ? COLORS.warning + '15' : COLORS.offline + '15' }]}>
+        <View style={[s.statusBadge, { backgroundColor: onlineCount === espDevices.length && espDevices.length > 0 ? COLORS.online + '20' : onlineCount > 0 ? COLORS.warning + '20' : COLORS.offline + '20' }]}>
           <MaterialCommunityIcons
             name={onlineCount === espDevices.length && espDevices.length > 0 ? 'wifi' : onlineCount > 0 ? 'wifi-alert' : 'wifi-off'}
             size={14}
@@ -241,44 +179,73 @@ const HomeScreen = () => {
         </View>
       </View>
 
-      <View style={s.searchRow}>
-        <MaterialCommunityIcons name="magnify" size={20} color={COLORS.textLight} />
-        <TextInput style={s.searchInput} placeholder="Search floors..." value={search} onChangeText={setSearch} placeholderTextColor={COLORS.textLight} />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <MaterialCommunityIcons name="close-circle" size={18} color={COLORS.textLight} />
+      {sortedFloors.length > 0 ? (
+        <>
+          <View style={s.floorTabs}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.floorTabsContent}>
+              {sortedFloors.map((f, i) => (
+                <TouchableOpacity
+                  key={f.id}
+                  style={[s.floorTab, activeFloorIdx === i && s.floorTabActive]}
+                  onPress={() => {
+                    setActiveFloorIdx(i);
+                    flatRef.current?.scrollTo({ x: i * SCREEN_W, animated: true });
+                  }}
+                >
+                  <Text style={[s.floorTabText, activeFloorIdx === i && s.floorTabTextActive]}>{f.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={s.addTab} onPress={() => setShowCreate(true)}>
+              <MaterialCommunityIcons name="plus" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            ref={flatRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleScrollEnd}
+            scrollEventThrottle={16}
+            style={s.mapScroll}
+          >
+            {sortedFloors.map(floor => (
+              <View key={floor.id} style={{ width: SCREEN_W }}>
+                <FloorMapView
+                  floor={floor}
+                  onRoomPress={openRoom}
+                  onDeviceToggle={handleDeviceToggle}
+                />
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={s.mapActions}>
+            <TouchableOpacity onPress={() => activeFloor && navigation.navigate('FloorEditor', { floorId: activeFloor.id })} style={s.mapActionBtn}>
+              <MaterialCommunityIcons name="pencil-outline" size={18} color={COLORS.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => activeFloor && handleDeleteFloor(activeFloor)} style={s.mapActionBtn}>
+              <MaterialCommunityIcons name="delete-outline" size={18} color={COLORS.danger} />
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <View style={s.emptyState}>
+          <MaterialCommunityIcons name="home-outline" size={64} color={COLORS.textLight} />
+          <Text style={s.emptyTitle}>No floors yet</Text>
+          <Text style={s.emptySub}>Create your first floor to get started</Text>
+          <TouchableOpacity style={s.createBtn} onPress={() => setShowCreate(true)}>
+            <MaterialCommunityIcons name="plus" size={20} color="#fff" />
+            <Text style={s.createBtnText}>Create Floor</Text>
           </TouchableOpacity>
-        )}
-      </View>
+        </View>
+      )}
 
-      <ScrollView
-        contentContainerStyle={s.scrollContent}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadHome} colors={[COLORS.primary]} />}
-        showsVerticalScrollIndicator={false}
-      >
-        {sortedFloors.length > 0 ? (
-          <View style={s.cardsSection}>
-            {sortedFloors.map(renderFloorCard)}
-            <TouchableOpacity style={s.addCard} onPress={() => setShowCreate(true)}>
-              <MaterialCommunityIcons name="plus" size={32} color={COLORS.primary} />
-              <Text style={s.addCardText}>New Floor</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={s.emptyState}>
-            <MaterialCommunityIcons name="home-outline" size={64} color={COLORS.textLight} />
-            <Text style={s.emptyTitle}>No floors yet</Text>
-            <Text style={s.emptySub}>Create your first floor to get started</Text>
-            <TouchableOpacity style={s.createBtn} onPress={() => setShowCreate(true)}>
-              <MaterialCommunityIcons name="plus" size={20} color="#fff" />
-              <Text style={s.createBtnText}>Create Floor</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {allRooms.length > 0 && (
-          <View style={s.roomsSection}>
-            <Text style={s.sectionTitle}>Quick Access</Text>
+      {allRooms.length > 0 && (
+        <View style={s.bottomPanel}>
+          <Text style={s.sectionTitle}>Quick Access</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickRow}>
             {allRooms.map(room => {
               const devices = room.devices || [];
               const parentFloor = floors.find(f => (f.rooms || []).some(r => r.id === room.id));
@@ -287,68 +254,43 @@ const HomeScreen = () => {
               const placedDevices: any[] = lr?.devices || [];
               const allDevs = [
                 ...devices.map(d => ({
-                  id: d.id,
-                  name: d.name,
-                  icon: d.type?.icon || 'devices',
-                  isOn: (d.state as any)?.power || false,
-                  isDb: true,
+                  id: d.id, name: d.name, icon: d.type?.icon || 'devices',
+                  isOn: (d.state as any)?.power || false, isDb: true,
+                  pin: d.pin,
                 })),
                 ...placedDevices.filter(pd => !devices.some(dd => dd.name === pd.name)).map(pd => ({
-                  id: pd.id,
-                  name: pd.name,
-                  icon: pd.type || 'devices',
-                  isOn: pd.isOn || false,
-                  isDb: false,
+                  id: pd.id, name: pd.name, icon: pd.type || 'devices',
+                  isOn: pd.isOn || false, isDb: false,
+                  pin: pd.espPin,
                 })),
               ];
               return (
-                <View key={room.id} style={[s.roomCard, { borderLeftColor: room.color }]}>
-                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }} onPress={() => openRoom(room)} activeOpacity={0.7}>
+                <View key={room.id} style={s.roomGroup}>
+                  <TouchableOpacity style={s.roomLabel} onPress={() => openRoom(room)} activeOpacity={0.7}>
                     <View style={[s.roomDot, { backgroundColor: room.color }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.roomName}>{room.name}</Text>
-                      <Text style={s.roomMeta}>{room.floorName}</Text>
-                    </View>
+                    <Text style={s.roomNameText} numberOfLines={1}>{room.name}</Text>
+                    <MaterialCommunityIcons name="chevron-right" size={14} color={COLORS.textLight} />
                   </TouchableOpacity>
-                  {allDevs.length > 0 && (
-                    <View style={s.quickDevices}>
-                      {allDevs.map(d => {
-                        const busy = togglingIds.has(d.id);
-                        return (
-                          <TouchableOpacity
-                            key={d.id}
-                            style={[s.quickDevice, d.isOn && s.quickDeviceOn]}
-                            onPress={() => handleDeviceToggle(d.id, d.isOn, !d.isDb, parentFloor?.id, parentFloor?.layout_data)}
-                            disabled={busy}
-                            activeOpacity={0.6}
-                          >
-                            <MaterialCommunityIcons
-                              name={(DEVICE_ICONS[d.icon] || d.icon) as any}
-                              size={15}
-                              color={d.isOn ? '#fff' : COLORS.textLight}
-                            />
-                            <Text style={[s.quickDevName, d.isOn && s.quickDevNameOn]} numberOfLines={1}>
-                              {d.name}
-                            </Text>
-                            <View style={[s.toggleTrack, d.isOn && s.toggleTrackOn]}>
-                              <View style={[s.toggleThumb, d.isOn && s.toggleThumbOn]} />
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  )}
+                  <View style={s.deviceRow}>
+                    {allDevs.map(d => (
+                      <AnimatedDeviceChip
+                        key={d.id}
+                        id={d.id}
+                        name={d.name}
+                        icon={d.icon}
+                        isOn={d.isOn}
+                        isDb={d.isDb}
+                        busy={togglingIds.has(d.id)}
+                        pin={d.pin}
+                        onToggle={() => handleDeviceToggle(d.id, d.isOn, !d.isDb, parentFloor?.id, parentFloor?.layout_data)}
+                      />
+                    ))}
+                  </View>
                 </View>
               );
             })}
-          </View>
-        )}
-      </ScrollView>
-
-      {sortedFloors.length > 0 && (
-        <TouchableOpacity style={s.fab} onPress={() => setShowCreate(true)}>
-          <MaterialCommunityIcons name="plus" size={28} color="#fff" />
-        </TouchableOpacity>
+          </ScrollView>
+        </View>
       )}
 
       <Modal visible={showCreate} animationType="slide" transparent>
@@ -375,53 +317,60 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.md,
+    paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: SPACING.sm,
     backgroundColor: COLORS.surface,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   greeting: { fontSize: FONT_SIZE.xxl, fontWeight: 'bold', color: COLORS.text },
-  subGreeting: { fontSize: FONT_SIZE.md, color: COLORS.textSecondary, marginTop: 2 },
+  subGreeting: { fontSize: FONT_SIZE.md, color: COLORS.textSecondary, marginTop: 1 },
   statusBadge: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.background,
+    flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderRadius: BORDER_RADIUS.full, gap: SPACING.xs,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusText: { fontSize: FONT_SIZE.sm, color: COLORS.textSecondary, fontWeight: '600' },
-  searchRow: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.md, marginTop: SPACING.sm, marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.md, borderRadius: BORDER_RADIUS.full,
-    borderWidth: 1, borderColor: COLORS.border, gap: SPACING.sm,
+  floorTabs: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  searchInput: { flex: 1, paddingVertical: SPACING.sm, fontSize: FONT_SIZE.md, color: COLORS.text },
-  scrollContent: { paddingBottom: 100 },
-  cardsSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.md },
-  card: {
-    width: CARD_W, backgroundColor: COLORS.surface, borderRadius: 20,
-    overflow: 'hidden',
+  floorTabsContent: { paddingHorizontal: SPACING.sm, gap: 6, paddingVertical: SPACING.xs },
+  floorTab: {
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.surfaceLight,
+  },
+  floorTabActive: { backgroundColor: COLORS.primary },
+  floorTabText: { fontSize: FONT_SIZE.sm, color: COLORS.textSecondary, fontWeight: '600' },
+  floorTabTextActive: { color: '#FFFFFF' },
+  addTab: {
+    paddingHorizontal: SPACING.sm, paddingVertical: 6,
+  },
+  mapScroll: { flex: 1 },
+  mapActions: {
+    position: 'absolute', left: SPACING.md, bottom: 200,
+    gap: SPACING.xs,
+  },
+  mapActionBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: COLORS.border,
   },
-  cardHeader: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+  bottomPanel: {
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1, borderTopColor: COLORS.border,
+    paddingTop: SPACING.sm, paddingBottom: SPACING.sm,
+    maxHeight: 180,
   },
-  cardTitle: { fontSize: FONT_SIZE.lg, fontWeight: '700', color: COLORS.text },
-  cardSub: { fontSize: FONT_SIZE.xs, color: COLORS.textSecondary, marginTop: 1 },
-  pinBtn: { padding: SPACING.sm },
-  cardFooter: {
-    flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center',
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, gap: SPACING.sm,
+  sectionTitle: { fontSize: FONT_SIZE.sm, fontWeight: '700', color: COLORS.text, paddingHorizontal: SPACING.md, marginBottom: SPACING.xs },
+  quickRow: { paddingHorizontal: SPACING.md, gap: SPACING.md },
+  roomGroup: { width: SCREEN_W - 32 },
+  roomLabel: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6,
   },
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: BORDER_RADIUS.full, backgroundColor: COLORS.primary + '15' },
-  editBtnText: { fontSize: FONT_SIZE.xs, color: COLORS.primary, fontWeight: '600' },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: BORDER_RADIUS.full, backgroundColor: COLORS.danger + '15' },
-  deleteBtnText: { fontSize: FONT_SIZE.xs, color: COLORS.danger, fontWeight: '600' },
-  addCard: {
-    width: CARD_W, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: COLORS.primary + '40', borderStyle: 'dashed',
-    borderRadius: 20, paddingVertical: SPACING.xl,
-  },
-  addCardText: { fontSize: FONT_SIZE.md, color: COLORS.primary, fontWeight: '600', marginTop: SPACING.sm },
-  emptyState: { alignItems: 'center', paddingTop: SPACING.xxl },
+  roomDot: { width: 8, height: 8, borderRadius: 4 },
+  roomNameText: { fontSize: FONT_SIZE.sm, color: COLORS.text, fontWeight: '600', flex: 1 },
+  deviceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: FONT_SIZE.xl, fontWeight: '600', color: COLORS.text, marginTop: SPACING.lg },
   emptySub: { fontSize: FONT_SIZE.md, color: COLORS.textSecondary, marginTop: SPACING.xs, textAlign: 'center' },
   createBtn: {
@@ -430,69 +379,17 @@ const s = StyleSheet.create({
     borderRadius: BORDER_RADIUS.full, marginTop: SPACING.lg, gap: SPACING.sm,
   },
   createBtnText: { color: '#fff', fontWeight: '600', fontSize: FONT_SIZE.lg },
-  roomsSection: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg },
-  sectionTitle: { fontSize: FONT_SIZE.lg, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
-  roomCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, marginBottom: SPACING.sm,
-    borderLeftWidth: 4,
-    shadowColor: COLORS.shadow, shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08, shadowRadius: 3, elevation: 2,
-  },
-  roomDot: { width: 10, height: 10, borderRadius: 5, marginRight: SPACING.md },
-  roomName: { fontSize: FONT_SIZE.lg, fontWeight: '600', color: COLORS.text },
-  roomMeta: { fontSize: FONT_SIZE.sm, color: COLORS.textSecondary, marginTop: 2 },
-  quickDevices: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
-    paddingTop: SPACING.sm, marginTop: SPACING.xs,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
-  },
-  quickDevice: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.background, paddingHorizontal: 10, paddingVertical: 8,
-    borderRadius: BORDER_RADIUS.lg, flexShrink: 0,
-  },
-  quickDeviceOn: {
-    backgroundColor: COLORS.primary,
-  },
-  quickDevName: {
-    fontSize: 12, color: COLORS.text, fontWeight: '500', maxWidth: 70,
-  },
-  quickDevNameOn: {
-    color: '#fff',
-  },
-  toggleTrack: {
-    width: 36, height: 20, borderRadius: 10,
-    backgroundColor: COLORS.border, justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  toggleTrackOn: {
-    backgroundColor: '#fff',
-  },
-  toggleThumb: {
-    width: 16, height: 16, borderRadius: 8,
-    backgroundColor: '#fff',
-  },
-  toggleThumbOn: {
-    backgroundColor: COLORS.primary,
-    alignSelf: 'flex-end',
-  },
-  fab: {
-    position: 'absolute', bottom: SPACING.xl, right: SPACING.xl,
-    width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primary,
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
-  },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
   modalContent: {
     backgroundColor: COLORS.surface, borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.xl,
+    borderTopWidth: 1, borderTopColor: COLORS.border,
   },
   modalTitle: { fontSize: FONT_SIZE.xl, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.lg },
   modalInput: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, fontSize: FONT_SIZE.lg, color: COLORS.text,
+    backgroundColor: COLORS.surfaceLight,
   },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: SPACING.md, marginTop: SPACING.lg },
   modalCancel: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, borderRadius: BORDER_RADIUS.md },

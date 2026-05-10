@@ -91,6 +91,13 @@ private:
       if (doc.containsKey("pin") && doc.containsKey("state")) {
         int pin = doc["pin"];
         JsonObject state = doc["state"];
+        if (doc.containsKey("command_id")) {
+          extern String currentCommandId;
+          currentCommandId = doc["command_id"].as<String>();
+        } else {
+          extern String currentCommandId;
+          currentCommandId = "";
+        }
         Serial.print("[WS] Command for pin ");
         Serial.print(pin);
         Serial.println();
@@ -202,14 +209,17 @@ public:
     webSocket.sendTXT(buffer);
   }
 
-  void sendPinStatus(int pin, JsonObject state) {
-    StaticJsonDocument<256> doc;
+  void sendPinStatus(int pin, JsonObject state, String commandId = "") {
+    StaticJsonDocument<384> doc;
     doc["type"] = "esp_status";
     doc["mac"] = WiFi.macAddress();
     doc["pin"] = pin;
     doc["state"] = state;
+    if (commandId.length() > 0) {
+      doc["command_id"] = commandId;
+    }
 
-    char buffer[256];
+    char buffer[384];
     serializeJson(doc, buffer);
     webSocket.sendTXT(buffer);
   }

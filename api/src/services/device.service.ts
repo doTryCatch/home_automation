@@ -295,12 +295,16 @@ export class DeviceService {
       throw new Error('ESP device is offline');
     }
 
-    webSocketService.sendCommandToEsp(device.esp_device.mac_address, device.pin, data.state);
+    const confirmedState = await webSocketService.sendCommandAndWait(
+      device.esp_device.mac_address,
+      device.pin,
+      data.state,
+    );
 
     const updatedDevice = await prisma.device.update({
       where: { id: deviceId },
       data: {
-        state: data.state,
+        state: confirmedState,
         last_updated: new Date(),
       },
       include: {
@@ -317,7 +321,7 @@ export class DeviceService {
     await prisma.deviceStateHistory.create({
       data: {
         device_id: deviceId,
-        state: data.state,
+        state: confirmedState,
         source: data.source,
       },
     });
@@ -352,15 +356,17 @@ export class DeviceService {
 
     if (!espDevice) throw new Error('ESP device not found');
 
-    console.log(`📡 ESP command request: esp=${espId} pin=${data.pin} mac=${espDevice.mac_address} connected=${webSocketService.isEspConnected(espDevice.mac_address)}`);
-
     if (!webSocketService.isEspConnected(espDevice.mac_address)) {
       throw new Error('ESP device is offline');
     }
 
-    webSocketService.sendCommandToEsp(espDevice.mac_address, data.pin, data.state);
+    const confirmedState = await webSocketService.sendCommandAndWait(
+      espDevice.mac_address,
+      data.pin,
+      data.state,
+    );
 
-    return { success: true, message: 'Command sent', pin: data.pin, state: data.state };
+    return { success: true, message: 'Command confirmed by ESP', pin: data.pin, state: confirmedState };
   }
 
   async createDeviceType(userId: string, data: CreateDeviceTypeInput) {
