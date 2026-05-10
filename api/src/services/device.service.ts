@@ -295,16 +295,12 @@ export class DeviceService {
       throw new Error('ESP device is offline');
     }
 
-    const confirmedState = await webSocketService.sendCommandAndWait(
-      device.esp_device.mac_address,
-      device.pin,
-      data.state,
-    );
+    const previousState = device.state as Record<string, unknown>;
 
-    const updatedDevice = await prisma.device.update({
+    const optimisticDevice = await prisma.device.update({
       where: { id: deviceId },
       data: {
-        state: confirmedState,
+        state: data.state,
         last_updated: new Date(),
       },
       include: {
@@ -318,15 +314,35 @@ export class DeviceService {
       },
     });
 
-    await prisma.deviceStateHistory.create({
-      data: {
-        device_id: deviceId,
-        state: confirmedState,
-        source: data.source,
-      },
-    });
+    try {
+      const confirmedState = await webSocketService.sendCommandAndWait(
+        device.esp_device.mac_address,
+        device.pin,
+        data.state,
+      );
 
-    return updatedDevice;
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { state: confirmedState, last_updated: new Date() },
+      });
+
+      await prisma.deviceStateHistory.create({
+        data: {
+          device_id: deviceId,
+          state: confirmedState,
+          source: data.source,
+        },
+      });
+
+      return { ...optimisticDevice, state: confirmedState };
+    } catch (err) {
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { state: previousState, last_updated: new Date() },
+      });
+
+      throw new Error('ESP did not confirm — state reverted');
+    }
   }
 
   async deleteDevice(userId: string, deviceId: string) {
@@ -360,13 +376,38 @@ export class DeviceService {
       throw new Error('ESP device is offline');
     }
 
-    const confirmedState = await webSocketService.sendCommandAndWait(
-      espDevice.mac_address,
-      data.pin,
-      data.state,
-    );
+    const device = await prisma.device.findFirst({
+      where: { esp_device_id: espId, pin: data.pin },
+    });
 
-    return { success: true, message: 'Command confirmed by ESP', pin: data.pin, state: confirmedState };
+    let previousState: Record<string, unknown> | null = null;
+
+    if (device) {
+      previousState = device.state as Record<string, unknown>;
+      await prisma.device.update({
+        where: { id: device.id },
+        data: { state: data.state, last_updated: new Date() },
+      });
+    }
+
+    try {
+      const confirmedState = await webSocketService.sendCommandAndWait(
+        espDevice.mac_address,
+        data.pin,
+        data.state,
+      );
+
+      return { success: true, message: 'Command confirmed by ESP', pin: data.pin, state: confirmedState };
+    } catch (err) {
+      if (device && previousState) {
+        await prisma.device.update({
+          where: { id: device.id },
+          data: { state: previousState, last_updated: new Date() },
+        });
+      }
+
+      throw new Error('ESP did not confirm — state reverted');
+    }
   }
 
   async createDeviceType(userId: string, data: CreateDeviceTypeInput) {

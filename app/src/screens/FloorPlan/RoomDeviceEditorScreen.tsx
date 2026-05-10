@@ -130,10 +130,26 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
     });
   }, [s2c, checkDirty]);
 
-  const toggleDevice = useCallback((devId: string) => {
+  const toggleDevice = useCallback(async (devId: string) => {
+    const dev = devices.find(d => d.id === devId);
+    if (!dev) return;
+
     const updated = devices.map(d => d.id === devId ? { ...d, isOn: !d.isOn } : d);
     setDevices(updated);
     checkDirty(updated);
+
+    try {
+      if (dev.dbDeviceId) {
+        await deviceService.control(dev.dbDeviceId, { power: !dev.isOn });
+      } else if (dev.espDeviceId && dev.espPin !== undefined) {
+        await deviceService.sendEspCommand(dev.espDeviceId, dev.espPin, { power: !dev.isOn });
+      }
+    } catch (e: any) {
+      const reverted = devices.map(d => d.id === devId ? { ...d, isOn: dev.isOn } : d);
+      setDevices(reverted);
+      checkDirty(reverted);
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to toggle');
+    }
   }, [devices, checkDirty]);
 
   const handleEnd = useCallback(() => {

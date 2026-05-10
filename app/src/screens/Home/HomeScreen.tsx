@@ -50,9 +50,10 @@ const HomeScreen = () => {
     return list;
   }, [floors, search, pinnedFloorIds]);
 
-  const allRooms = useMemo(() =>
-    floors.flatMap(f => (f.rooms || []).map(r => ({ ...r, floorName: f.name })))
-  , [floors]);
+  const activeFloorRooms = useMemo(() => {
+    if (!activeFloor) return [];
+    return (activeFloor.rooms || []).map(r => ({ ...r, floorName: activeFloor.name }));
+  }, [activeFloor]);
 
   const openRoom = useCallback((room: Room) => {
     const parentFloor = floors.find(f => (f.rooms || []).some(r => r.id === room.id));
@@ -242,11 +243,11 @@ const HomeScreen = () => {
         </View>
       )}
 
-      {allRooms.length > 0 && (
+      {activeFloorRooms.length > 0 && (
         <View style={s.bottomPanel}>
-          <Text style={s.sectionTitle}>Quick Access</Text>
+          <Text style={s.sectionTitle}>Quick Access — {activeFloor?.name}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickRow}>
-            {allRooms.map(room => {
+            {activeFloorRooms.map(room => {
               const devices = room.devices || [];
               const parentFloor = floors.find(f => (f.rooms || []).some(r => r.id === room.id));
               const ld = parentFloor?.layout_data as any;

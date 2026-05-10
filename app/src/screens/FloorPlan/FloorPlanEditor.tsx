@@ -65,7 +65,7 @@ interface Props {
 }
 
 export default function FloorPlanEditor({ rooms, onChange, onRoomTap, onSave, saving, dirty }: Props) {
-  const [mode, setMode] = useState<EditorMode>('draw');
+  const [mode, setMode] = useState<EditorMode>('select');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasL, setCanvasL] = useState({ w: 0, h: 0 });
   const [preview, setPreview] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -260,7 +260,6 @@ export default function FloorPlanEditor({ rooms, onChange, onRoomTap, onSave, sa
   ]);
 
   const modes: { key: EditorMode; icon: string; label: string }[] = [
-    { key: 'draw', icon: 'rectangle-outline', label: 'Draw' },
     { key: 'select', icon: 'cursor-move', label: 'Select' },
     { key: 'device', icon: 'devices', label: 'Device' },
   ];
@@ -274,9 +273,8 @@ export default function FloorPlanEditor({ rooms, onChange, onRoomTap, onSave, sa
             <Text style={[s.toolBtnText, mode === m.key && s.toolBtnTextActive]}>{m.label}</Text>
           </TouchableOpacity>
         ))}
-        {mode === 'draw' && <>
+        {mode === 'select' && <>
           <View style={s.sep} />
-          <TouchableOpacity style={s.toolBtn} onPress={undo}><MaterialCommunityIcons name="undo" size={16} color={COLORS.textSecondary} /></TouchableOpacity>
           <TouchableOpacity style={s.toolBtn} onPress={clearAll}><MaterialCommunityIcons name="trash-can-outline" size={16} color={COLORS.danger} /></TouchableOpacity>
         </>}
         <View style={{ flex: 1 }} />
@@ -298,8 +296,7 @@ export default function FloorPlanEditor({ rooms, onChange, onRoomTap, onSave, sa
 
       <View style={s.hint}>
         <Text style={s.hintText}>
-          {mode === 'draw' ? 'Drag to draw rooms'
-            : mode === 'select' ? 'Tap room to select · Drag to move · Drag corners to resize'
+          {mode === 'select' ? 'Tap room to select · Drag to move · Drag corners to resize'
             : 'Tap inside a room to place a device'}
         </Text>
       </View>
