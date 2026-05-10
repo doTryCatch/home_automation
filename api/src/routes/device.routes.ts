@@ -27,6 +27,11 @@ router.get(
 );
 
 router.get(
+  '/esp/unclaimed',
+  DeviceController.getUnclaimedEspDevices
+);
+
+router.get(
   '/esp/:id',
   DeviceController.getEspById
 );
@@ -40,11 +45,6 @@ router.put(
 router.delete(
   '/esp/:id',
   DeviceController.deleteEsp
-);
-
-router.get(
-  '/esp/unclaimed',
-  DeviceController.getUnclaimedEspDevices
 );
 
 router.post(
