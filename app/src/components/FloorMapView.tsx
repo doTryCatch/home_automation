@@ -53,6 +53,7 @@ const FloorMapView: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }) =
   const isPinching = useRef(false);
   const isPanning = useRef(false);
   const grantPos = useRef({ x: 0, y: 0 });
+  const lastTap = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const layoutRooms: any[] = useMemo(() => {
     const ld = floor.layout_data as any;
@@ -107,6 +108,33 @@ const FloorMapView: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }) =
 
   const handleTapAt = useCallback((sx: number, sy: number) => {
     const pt = screenToCanvas(sx, sy);
+    const now = Date.now();
+    const isDoubleTap = lastTap.current &&
+      now - lastTap.current.time < 400 &&
+      Math.abs(sx - lastTap.current.x) < 30 &&
+      Math.abs(sy - lastTap.current.y) < 30;
+
+    if (isDoubleTap) {
+      lastTap.current = null;
+      const rooms = floor.rooms || [];
+      for (let i = rooms.length - 1; i >= 0; i--) {
+        const lr = layoutRooms.find((r: any) => r.id === rooms[i].id || r.name === rooms[i].name);
+        if (lr && pt.x >= lr.x && pt.x <= lr.x + lr.width && pt.y >= lr.y && pt.y <= lr.y + lr.height) {
+          onRoomPress(rooms[i]);
+          return;
+        }
+      }
+      for (let i = layoutRooms.length - 1; i >= 0; i--) {
+        const lr = layoutRooms[i];
+        if (pt.x >= lr.x && pt.x <= lr.x + lr.width && pt.y >= lr.y && pt.y <= lr.y + lr.height) {
+          onRoomPress({ id: lr.id, name: lr.name, color: lr.color } as any);
+          return;
+        }
+      }
+      return;
+    }
+
+    lastTap.current = { x: sx, y: sy, time: now };
 
     for (let i = devices.length - 1; i >= 0; i--) {
       const dev = devices[i];
@@ -116,15 +144,6 @@ const FloorMapView: React.FC<Props> = ({ floor, onRoomPress, onDeviceToggle }) =
         );
         const isPlaced = lr?.devices?.some((d: any) => d.id === dev.id);
         onDeviceToggle?.(dev.id, dev.isOn, !!isPlaced, floor.id, floor.layout_data);
-        return;
-      }
-    }
-
-    const rooms = floor.rooms || [];
-    for (let i = rooms.length - 1; i >= 0; i--) {
-      const lr = layoutRooms.find((r: any) => r.id === rooms[i].id || r.name === rooms[i].name);
-      if (lr && pt.x >= lr.x && pt.x <= lr.x + lr.width && pt.y >= lr.y && pt.y <= lr.y + lr.height) {
-        onRoomPress(rooms[i]);
         return;
       }
     }

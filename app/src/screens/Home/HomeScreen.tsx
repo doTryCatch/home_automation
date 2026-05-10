@@ -50,23 +50,29 @@ const HomeScreen = () => {
     return list;
   }, [floors, search, pinnedFloorIds]);
 
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set);
+  const [activeFloorIdx, setActiveFloorIdx] = useState(0);
+  const activeFloor = sortedFloors[activeFloorIdx] || null;
+
   const activeFloorRooms = useMemo(() => {
     if (!activeFloor) return [];
     return (activeFloor.rooms || []).map(r => ({ ...r, floorName: activeFloor.name }));
   }, [activeFloor]);
 
   const openRoom = useCallback((room: Room) => {
-    const parentFloor = floors.find(f => (f.rooms || []).some(r => r.id === room.id));
+    let parentFloor = floors.find(f => (f.rooms || []).some(r => r.id === room.id));
+    if (!parentFloor) {
+      parentFloor = floors.find(f => (f.rooms || []).some(r => r.name === room.name));
+    }
+    if (!parentFloor && activeFloor) {
+      parentFloor = activeFloor;
+    }
     if (parentFloor) {
       navigation.navigate('RoomDeviceEditor', { floorId: parentFloor.id, roomId: room.id });
     } else {
       navigation.navigate('RoomControl', { room });
     }
-  }, [navigation, floors]);
-
-  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set);
-  const [activeFloorIdx, setActiveFloorIdx] = useState(0);
-  const activeFloor = sortedFloors[activeFloorIdx] || null;
+  }, [navigation, floors, activeFloor]);
 
   const handleDeviceToggle = useCallback(async (deviceId: string, isOn: boolean, isPlaced?: boolean, floorId?: string, layoutData?: any) => {
     setTogglingIds(prev => new Set(prev).add(deviceId));

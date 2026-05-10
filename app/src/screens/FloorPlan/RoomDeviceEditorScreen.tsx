@@ -71,7 +71,8 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
   }, [floor, roomId]);
 
   const checkDirty = useCallback((next: PlacedDevice[]) => {
-    setDirty(JSON.stringify(next) !== snapRef.current);
+    const stripState = (arr: PlacedDevice[]) => arr.map(d => ({ id: d.id, rx: d.rx, ry: d.ry }));
+    setDirty(JSON.stringify(stripState(next)) !== JSON.stringify(stripState(JSON.parse(snapRef.current || '[]'))));
   }, []);
 
   const s2c = useCallback((sx: number, sy: number) => {
@@ -130,13 +131,32 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
     });
   }, [s2c, checkDirty]);
 
+  const saveOnStates = useCallback(async (updatedDevices: PlacedDevice[]) => {
+    if (!floor) return;
+    try {
+      const ld = (floor.layout_data as any) || {};
+      let layoutRooms: any[] = (ld.rooms && Array.isArray(ld.rooms)) ? [...ld.rooms] : [];
+      const dbRoom = (floor.rooms || []).find((r: any) => r.id === roomId);
+      const idx = layoutRooms.findIndex((r: any) => r.id === roomId || r.name === dbRoom?.name);
+      if (idx >= 0) {
+        layoutRooms[idx] = { ...layoutRooms[idx], devices: updatedDevices };
+      }
+      await floorService.update(floor.id, {
+        layout_data: { ...ld, rooms: layoutRooms },
+      } as any);
+      snapRef.current = JSON.stringify(updatedDevices);
+      await loadHome();
+    } catch (e: any) {
+      console.warn('Auto-save isOn failed:', e?.message);
+    }
+  }, [floor, roomId, loadHome]);
+
   const toggleDevice = useCallback(async (devId: string) => {
     const dev = devices.find(d => d.id === devId);
     if (!dev) return;
 
     const updated = devices.map(d => d.id === devId ? { ...d, isOn: !d.isOn } : d);
     setDevices(updated);
-    checkDirty(updated);
 
     try {
       if (dev.dbDeviceId) {
@@ -144,13 +164,14 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
       } else if (dev.espDeviceId && dev.espPin !== undefined) {
         await deviceService.sendEspCommand(dev.espDeviceId, dev.espPin, { power: !dev.isOn });
       }
+      await saveOnStates(updated);
     } catch (e: any) {
       const reverted = devices.map(d => d.id === devId ? { ...d, isOn: dev.isOn } : d);
       setDevices(reverted);
-      checkDirty(reverted);
+      await saveOnStates(reverted);
       Alert.alert('Error', e?.response?.data?.message || 'Failed to toggle');
     }
-  }, [devices, checkDirty]);
+  }, [devices, saveOnStates]);
 
   const handleEnd = useCallback(() => {
     if (dragRef.current) {
@@ -282,7 +303,7 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
       </View>
 
       <View style={s.hintBar}>
-        <Text style={s.hintText}>Tap inside room to add device. Tap device to toggle on/off. Drag to move.</Text>
+        <Text style={s.hintText}>Tap inside room to add device. Tap device to toggle. Drag to move. Save for position changes.</Text>
       </View>
 
       <View

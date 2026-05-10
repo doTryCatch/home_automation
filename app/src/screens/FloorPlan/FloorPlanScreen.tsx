@@ -10,7 +10,7 @@ import { useHomeStore } from '../../store';
 import { floorService } from '../../services/floorService';
 import { roomService } from '../../services/roomService';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, DEVICE_ICONS } from '../../constants/theme';
-import { Floor, Room, Point } from '../../types';
+import { Floor, Room } from '../../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../navigation/MainNavigator';
 
@@ -21,10 +21,7 @@ const FloorPlanScreen = () => {
   const navigation = useNavigation<Nav>();
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [showCreateFloor, setShowCreateFloor] = useState(false);
-  const [showAddRoom, setShowAddRoom] = useState(false);
   const [floorName, setFloorName] = useState('');
-  const [roomName, setRoomName] = useState('');
-  const [roomColor, setRoomColor] = useState(COLORS.roomColors[0]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -53,33 +50,6 @@ const FloorPlanScreen = () => {
       setFloorName('');
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message || 'Failed to create floor');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddRoom = async () => {
-    if (!roomName.trim() || !selectedFloorId) {
-      return Alert.alert('Error', 'Enter room name');
-    }
-    setLoading(true);
-    try {
-      const coords: Point[] = [
-        { x: 100, y: 100 }, { x: 400, y: 100 },
-        { x: 400, y: 350 }, { x: 100, y: 350 },
-      ];
-      await roomService.create({
-        floor_id: selectedFloorId,
-        name: roomName.trim(),
-        polygon_coords: coords,
-        color: roomColor,
-      });
-      await loadHome();
-      setShowAddRoom(false);
-      setRoomName('');
-      setRoomColor(COLORS.roomColors[Math.floor(Math.random() * COLORS.roomColors.length)]);
-    } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed to add room');
     } finally {
       setLoading(false);
     }
@@ -125,24 +95,7 @@ const FloorPlanScreen = () => {
     navigation.navigate('RoomDeviceEditor', { floorId: selectedFloorId, roomId: room.id });
   };
 
-  const renderRoomCard = ({ item }: { item: Room | null }) => {
-    if (!item) {
-      return (
-        <TouchableOpacity
-          style={s.addRoomCard}
-          onPress={() => {
-            setRoomName('');
-            setRoomColor(COLORS.roomColors[Math.floor(Math.random() * COLORS.roomColors.length)]);
-            setShowAddRoom(true);
-          }}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons name="plus" size={32} color={COLORS.primary} />
-          <Text style={s.addRoomText}>Add Room</Text>
-        </TouchableOpacity>
-      );
-    }
-
+  const renderRoomCard = ({ item }: { item: Room }) => {
     const dbDevices = item.devices || [];
     const onCount = dbDevices.filter(d => (d.state as any)?.power).length;
 
@@ -257,7 +210,7 @@ const FloorPlanScreen = () => {
     );
   }
 
-  const roomData: (Room | null)[] = [...rooms, null];
+  const roomData: Room[] = rooms;
   const ld = selectedFloor?.layout_data as any;
   const layoutRooms: any[] = (ld?.rooms && Array.isArray(ld.rooms)) ? ld.rooms : [];
   const dbTotal = rooms.reduce((sum, r) => sum + (r.devices?.length || 0), 0);
@@ -332,51 +285,6 @@ const FloorPlanScreen = () => {
       />
 
       {createFloorModal}
-
-      <Modal visible={showAddRoom} animationType="slide" transparent>
-        <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Add Room</Text>
-
-            <Text style={s.label}>Room Name</Text>
-            <TextInput
-              style={s.input}
-              placeholder="e.g. Bedroom, Kitchen"
-              placeholderTextColor={COLORS.textLight}
-              value={roomName}
-              onChangeText={setRoomName}
-              autoFocus
-            />
-
-            <Text style={s.label}>Color</Text>
-            <View style={s.colorGrid}>
-              {COLORS.roomColors.map(c => (
-                <TouchableOpacity
-                  key={c}
-                  style={[s.colorCircle, { backgroundColor: c }, roomColor === c && s.colorCircleSelected]}
-                  onPress={() => setRoomColor(c)}
-                >
-                  {roomColor === c && (
-                    <MaterialCommunityIcons name="check" size={16} color="#fff" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={s.modalActions}>
-              <TouchableOpacity
-                style={s.cancelBtn}
-                onPress={() => { setShowAddRoom(false); setRoomName(''); }}
-              >
-                <Text style={s.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.confirmBtn} onPress={handleAddRoom} disabled={loading}>
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmText}>Add Room</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };

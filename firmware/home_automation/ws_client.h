@@ -84,7 +84,19 @@ private:
     }
 
     else if (type == "esp_sync") {
-      Serial.println("[WS] Received device sync");
+      Serial.println("[WS] Received device sync, applying states");
+      if (doc.containsKey("devices") && doc["devices"].is<JsonArray>()) {
+        JsonArray devs = doc["devices"].as<JsonArray>();
+        for (JsonObject dev : devs) {
+          if (dev.containsKey("pin") && dev.containsKey("state")) {
+            int pin = dev["pin"];
+            JsonObject state = dev["state"];
+            if (commandCallback) {
+              commandCallback(pin, state);
+            }
+          }
+        }
+      }
     }
 
     else if (type == "esp_command") {
