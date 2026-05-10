@@ -28,6 +28,12 @@ const FloorPlanScreen = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (floors.length === 0) {
+      loadHome();
+    }
+  }, []);
+
+  useEffect(() => {
     if (floors.length > 0 && !selectedFloorId) {
       setSelectedFloorId(floors[0].id);
     }

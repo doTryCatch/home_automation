@@ -47,6 +47,15 @@ private:
         break;
       }
 
+      case WStype_ERROR:
+        Serial.print("[WS] Error: ");
+        if (payload && length > 0) {
+          Serial.println((char*)payload);
+        } else {
+          Serial.println("unknown");
+        }
+        break;
+
       default:
         break;
     }
@@ -137,13 +146,25 @@ public:
   }
 
   void begin() {
+    Serial.print("[WS] Free heap: ");
+    Serial.println(ESP.getFreeHeap());
+
+    Serial.print("[WS] Resolving DNS for ");
+    Serial.print(API_SERVER);
+    IPAddress resolvedIP;
+    if (WiFi.hostByName(API_SERVER, resolvedIP)) {
+      Serial.print(" -> ");
+      Serial.println(resolvedIP);
+    } else {
+      Serial.println(" FAILED");
+    }
+
     Serial.print("[WS] Connecting to ");
     Serial.print(API_SERVER);
     Serial.print(":");
     Serial.println(API_PORT);
 
 #if WS_USE_TLS
-    secClient.setInsecure();
     webSocket.beginSSL(API_SERVER, API_PORT, WS_PATH);
 #else
     webSocket.begin(API_SERVER, API_PORT, WS_PATH);
@@ -153,6 +174,7 @@ public:
       this->handleEvent(t, p, l);
     });
 
+    webSocket.setExtraHeaders("ngrok-skip-browser-warning: true");
     webSocket.setReconnectInterval(RECONNECT_DELAY);
     webSocket.enableHeartbeat(15000, 30000, 2);
   }

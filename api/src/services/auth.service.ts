@@ -183,6 +183,34 @@ export class AuthService {
     return { message: 'Account deleted successfully' };
   }
 
+  async refreshToken(refreshToken: string) {
+    try {
+      const decoded = jwt.verify(refreshToken, config.jwt.secret + '_refresh') as { userId: string };
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          theme: true,
+          is_active: true,
+        },
+      });
+
+      if (!user || !user.is_active) {
+        throw new Error('Invalid refresh token');
+      }
+
+      const newToken = this.generateToken(user.id, user.email);
+      const newRefreshToken = this.generateRefreshToken(user.id);
+
+      return { token: newToken, refreshToken: newRefreshToken };
+    } catch {
+      throw new Error('Invalid or expired refresh token');
+    }
+  }
+
   private async createDefaultDeviceTypes(userId: string) {
     const defaultTypes = [
       { name: 'Light', icon: 'lightbulb', category: 'lighting', properties_schema: { power: { type: 'boolean' }, brightness: { type: 'number', min: 0, max: 100 } } },
@@ -199,15 +227,14 @@ export class AuthService {
       { name: 'Geyser', icon: 'water-heater', category: 'appliance', properties_schema: { power: { type: 'boolean' } } },
     ];
 
-    for (const type of defaultTypes) {
-      await prisma.deviceType.create({
-        data: {
-          user_id: userId,
-          ...type,
-          is_default: true,
-        },
-      });
-    }
+    await prisma.deviceType.createMany({
+      data: defaultTypes.map(type => ({
+        user_id: userId,
+        ...type,
+        is_default: true,
+        properties_schema: type.properties_schema as any,
+      })),
+    });
   }
 }
 

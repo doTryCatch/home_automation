@@ -15,6 +15,28 @@ public:
   WifiManager() : connected(false), lastCheck(0) {}
 
   bool begin(bool autoConnect = true) {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.print("[WiFi] Trying hardcoded SSID: ");
+    Serial.println(WIFI_SSID);
+
+    unsigned long startAttemptTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println();
+
+    if (WiFi.status() == WL_CONNECTED) {
+      connected = true;
+      ssid = WiFi.SSID();
+      Serial.print("[WiFi] Connected with hardcoded credentials. IP: ");
+      Serial.println(WiFi.localIP());
+      return true;
+    }
+
+    Serial.println("[WiFi] Hardcoded credentials failed, starting config portal...");
+
     if (autoConnect) {
       WiFiManager wm;
       wm.setConnectTimeout(10);
@@ -27,15 +49,6 @@ public:
         Serial.println("Failed to connect to WiFi");
         connected = false;
         return false;
-      }
-    } else {
-      WiFi.mode(WIFI_STA);
-      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-      unsigned long startAttemptTime = millis();
-      while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT) {
-        delay(500);
-        Serial.print(".");
       }
     }
 

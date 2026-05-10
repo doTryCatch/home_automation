@@ -78,4 +78,14 @@ export const deviceService = {
   async deleteEsp(id: string): Promise<void> {
     await api.delete('/devices/esp/' + id);
   },
+
+  async getUnclaimedEspDevices(): Promise<EspDevice[]> {
+    const res = await api.get('/devices/esp/unclaimed');
+    return res.data?.data ?? [];
+  },
+
+  async claimEspDevice(id: string, name?: string): Promise<EspDevice> {
+    const res = await api.post('/devices/esp/' + id + '/claim', { name });
+    return res.data?.data;
+  },
 };

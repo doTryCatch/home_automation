@@ -43,6 +43,7 @@ app.get('/', (_req, res) => {
         devices: '/api/devices',
         schedules: '/api/schedules',
         esp: '/api/esp',
+        notifications: '/api/notifications',
       },
     },
   });
@@ -54,6 +55,7 @@ app.use('/api/rooms', routes.roomRoutes);
 app.use('/api/devices', routes.deviceRoutes);
 app.use('/api/schedules', routes.scheduleRoutes);
 app.use('/api/esp', routes.espRoutes);
+app.use('/api/notifications', routes.notificationRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

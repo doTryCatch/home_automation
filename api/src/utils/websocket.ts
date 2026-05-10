@@ -1,5 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
+import { verify } from 'jsonwebtoken';
+import { config } from '../config';
 import prisma from '../config/database';
 
 interface WSClient extends WebSocket {
@@ -61,16 +63,23 @@ export class WebSocketService {
 
   private async handleMessage(ws: WSClient, data: Record<string, unknown>): Promise<void> {
     switch (data.type) {
-      case 'auth':
-        if (data.userId) {
-          ws.userId = data.userId as string;
-          if (!this.clients.has(data.userId as string)) {
-            this.clients.set(data.userId as string, new Set());
+      case 'auth': {
+        const token = data.token as string;
+        if (token) {
+          try {
+            const decoded = verify(token, config.jwt.secret) as { userId: string };
+            ws.userId = decoded.userId;
+            if (!this.clients.has(decoded.userId)) {
+              this.clients.set(decoded.userId, new Set());
+            }
+            this.clients.get(decoded.userId)!.add(ws);
+            ws.send(JSON.stringify({ type: 'auth', success: true }));
+          } catch {
+            ws.send(JSON.stringify({ type: 'auth', success: false, message: 'Invalid token' }));
           }
-          this.clients.get(data.userId as string)!.add(ws);
-          ws.send(JSON.stringify({ type: 'auth', success: true }));
         }
         break;
+      }
 
       case 'esp_auth':
         await this.handleEspAuth(ws, data);
@@ -108,7 +117,9 @@ export class WebSocketService {
         data: { is_online: true, last_seen: new Date() },
       });
 
-      this.broadcastEspStatus(espDevice.user_id, espDevice.id, true);
+      if (espDevice.user_id) {
+        this.broadcastEspStatus(espDevice.user_id, espDevice.id, true);
+      }
 
       const devices = await prisma.device.findMany({
         where: { esp_device_id: espDevice.id, is_active: true },
@@ -119,6 +130,16 @@ export class WebSocketService {
         type: 'esp_sync',
         devices,
       }));
+    } else {
+      const newEsp = await prisma.espDevice.create({
+        data: {
+          name: `ESP-${mac.replace(/:/g, '').slice(-6)}`,
+          mac_address: mac,
+          is_online: true,
+          last_seen: new Date(),
+        },
+      });
+      console.log(`📋 Auto-registered new ESP: ${mac} (unclaimed)`);
     }
 
     ws.send(JSON.stringify({ type: 'esp_auth', success: true }));
@@ -180,7 +201,9 @@ export class WebSocketService {
         },
       });
 
-      this.broadcastDeviceUpdate(espDevice.user_id, device.id, state);
+      if (espDevice.user_id) {
+        this.broadcastDeviceUpdate(espDevice.user_id, device.id, state);
+      }
     }
   }
 
@@ -237,7 +260,9 @@ export class WebSocketService {
           where: { id: espDevice.id },
           data: { is_online: false },
         }).then(() => {
-          this.broadcastEspStatus(espDevice.user_id, espDevice.id, false);
+          if (espDevice.user_id) {
+            this.broadcastEspStatus(espDevice.user_id, espDevice.id, false);
+          }
         });
       }
     }).catch(console.error);
@@ -266,7 +291,7 @@ export class WebSocketService {
           const espDevice = await prisma.espDevice.findUnique({
             where: { id: espDeviceId },
           });
-          if (espDevice) {
+          if (espDevice && espDevice.user_id) {
             this.broadcastDeviceUpdate(espDevice.user_id, device.id, newState as Record<string, unknown>);
           }
         }

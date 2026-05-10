@@ -69,7 +69,7 @@ model Room {
 
 model EspDevice {
   id            String    @id @default(uuid())
-  user_id       String
+  user_id       String?
   name          String
   mac_address   String    @unique
   ip_address    String?
@@ -81,7 +81,7 @@ model EspDevice {
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
 
-  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user          User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   devices       Device[]
 
   @@index([user_id])

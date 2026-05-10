@@ -35,8 +35,12 @@ const DeviceScheduleScreen = ({ route, navigation }: Props) => {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await scheduleService.delete(id);
-          await loadSchedules(deviceId);
+          try {
+            await scheduleService.delete(id);
+            await loadSchedules(deviceId);
+          } catch (e: any) {
+            Alert.alert('Error', e?.response?.data?.message || 'Failed to delete');
+          }
         },
       },
     ]);

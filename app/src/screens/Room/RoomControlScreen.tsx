@@ -20,8 +20,14 @@ const RoomControlScreen = ({ route, navigation }: Props) => {
   const { devices, loadDevices, updateDeviceState } = useDeviceStore();
   const { deviceTypes, espDevices, loadHome } = useHomeStore();
 
+  const selectedEspObj = espDevices.find(e => e.id === selectedEsp);
+  const usedPins = new Set((selectedEspObj?.devices || []).map(d => d.pin));
+
   const [showAdd, setShowAdd] = useState(false);
-  const [showRegisterEsp, setShowRegisterEsp] = useState(false);
+  const [showClaimEsp, setShowClaimEsp] = useState(false);
+  const [unclaimedEsps, setUnclaimedEsps] = useState<any[]>([]);
+  const [claimName, setClaimName] = useState('');
+  const [selectedUnclaimedId, setSelectedUnclaimedId] = useState('');
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState('');
   const [selectedEsp, setSelectedEsp] = useState('');
@@ -29,9 +35,6 @@ const RoomControlScreen = ({ route, navigation }: Props) => {
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-
-  const [espMac, setEspMac] = useState('');
-  const [espName, setEspName] = useState('');
 
   useEffect(() => {
     navigation.setOptions({ title: room.name, headerBackTitle: 'Back' });
@@ -107,23 +110,28 @@ const RoomControlScreen = ({ route, navigation }: Props) => {
     }
   };
 
-  const handleRegisterEsp = async () => {
-    if (!espMac.trim() || !espName.trim()) {
-      return Alert.alert('Error', 'Enter MAC address and name');
+  const handleOpenClaimEsp = async () => {
+    try {
+      const devices = await deviceService.getUnclaimedEspDevices();
+      setUnclaimedEsps(devices);
+      setShowClaimEsp(true);
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to scan for devices');
     }
+  };
+
+  const handleClaimEsp = async () => {
+    if (!selectedUnclaimedId) return Alert.alert('Error', 'Select a device');
     setSaving(true);
     try {
-      const esp = await deviceService.registerEsp({
-        mac_address: espMac.trim().toUpperCase(),
-        name: espName.trim(),
-      });
+      const esp = await deviceService.claimEspDevice(selectedUnclaimedId, claimName.trim() || undefined);
       await loadHome();
       if (esp) setSelectedEsp(esp.id);
-      setShowRegisterEsp(false);
-      setEspMac('');
-      setEspName('');
+      setShowClaimEsp(false);
+      setClaimName('');
+      setSelectedUnclaimedId('');
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Registration failed');
+      Alert.alert('Error', e?.response?.data?.message || 'Failed to claim');
     } finally {
       setSaving(false);
     }
@@ -161,6 +169,9 @@ const RoomControlScreen = ({ route, navigation }: Props) => {
               <Text style={s.deviceMetaText}>
                 {device.esp_device?.name || 'Unknown'} · Pin {device.pin}
               </Text>
+              {!isOnline && (
+                <Text style={s.offlineLabel}>Offline</Text>
+              )}
             </View>
           </View>
 
@@ -292,7 +303,7 @@ const RoomControlScreen = ({ route, navigation }: Props) => {
                     <TouchableOpacity
                       key={esp.id}
                       style={[s.chip, selectedEsp === esp.id && s.chipSelected]}
-                      onPress={() => setSelectedEsp(esp.id)}
+                      onPress={() => { setSelectedEsp(esp.id); setSelectedPin(''); }}
                     >
                       <View style={[s.chipDot, { backgroundColor: esp.is_online ? COLORS.online : COLORS.offline }]} />
                       <Text style={[s.chipText, selectedEsp === esp.id && s.chipTextSelected]}>
@@ -302,24 +313,53 @@ const RoomControlScreen = ({ route, navigation }: Props) => {
                   ))}
                 </ScrollView>
               ) : null}
-              <TouchableOpacity style={s.registerEspBtn} onPress={() => setShowRegisterEsp(true)}>
+              <TouchableOpacity style={s.registerEspBtn} onPress={handleOpenClaimEsp}>
                 <MaterialCommunityIcons name="plus-circle-outline" size={18} color={COLORS.primary} />
                 <Text style={s.registerEspText}>
-                  {espDevices.length === 0 ? 'No ESP devices — Register one first' : 'Register new ESP'}
+                  {espDevices.length === 0 ? 'No ESP devices — Discover one first' : 'Discover new ESP'}
                 </Text>
               </TouchableOpacity>
 
-              <Text style={s.label}>Pin Number (0-16)</Text>
-              <TextInput
-                style={s.input}
-                placeholder="Pin number"
-                placeholderTextColor={COLORS.textLight}
-                value={selectedPin}
-                onChangeText={setSelectedPin}
-                keyboardType="number-pad"
-                returnKeyType="done"
-                maxLength={2}
-              />
+              <Text style={s.label}>Pin Number</Text>
+              {selectedEsp ? (
+                <View style={s.pinGrid}>
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const isUsed = usedPins.has(i);
+                    const isSelected = selectedPin === String(i);
+                    const occupyingDevice = selectedEspObj?.devices?.find(d => d.pin === i);
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={[
+                          s.pinChip,
+                          isSelected && s.pinChipSelected,
+                          isUsed && s.pinChipUsed,
+                        ]}
+                        disabled={isUsed}
+                        onPress={() => setSelectedPin(String(i))}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          s.pinChipText,
+                          isSelected && s.pinChipTextSelected,
+                          isUsed && s.pinChipTextUsed,
+                        ]}>
+                          {i}
+                        </Text>
+                        {isUsed && occupyingDevice ? (
+                          <Text style={s.pinChipLabel} numberOfLines={1}>
+                            {occupyingDevice.name}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={{ color: COLORS.textLight, fontSize: FONT_SIZE.sm }}>
+                  Select an ESP device first to see available pins
+                </Text>
+              )}
             </ScrollView>
 
             <View style={s.modalActions}>
@@ -337,48 +377,58 @@ const RoomControlScreen = ({ route, navigation }: Props) => {
         </View>
       </Modal>
 
-      {/* Register ESP Modal */}
-      <Modal visible={showRegisterEsp} animationType="slide" transparent>
+      <Modal visible={showClaimEsp} animationType="slide" transparent>
         <View style={s.modalOverlay}>
           <View style={s.modalContent}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Register ESP Device</Text>
-              <TouchableOpacity onPress={() => setShowRegisterEsp(false)}>
+              <Text style={s.modalTitle}>Discovered Devices</Text>
+              <TouchableOpacity onPress={() => setShowClaimEsp(false)}>
                 <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <Text style={s.fieldHint}>
-              Enter the MAC address shown on your ESP device's serial monitor
-            </Text>
+            {unclaimedEsps.length === 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: SPACING.xl }}>
+                <MaterialCommunityIcons name="access-point-off" size={48} color={COLORS.textLight} />
+                <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.md, textAlign: 'center' }}>
+                  No new ESP devices found.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {unclaimedEsps.map((esp: any) => (
+                  <TouchableOpacity
+                    key={esp.id}
+                    style={[s.chip, selectedUnclaimedId === esp.id && s.chipSelected, { marginBottom: SPACING.sm, paddingVertical: SPACING.md }]}
+                    onPress={() => { setSelectedUnclaimedId(esp.id); setClaimName(esp.name); }}
+                  >
+                    <View style={s.chipDot} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.chipText, selectedUnclaimedId === esp.id && s.chipTextSelected]}>{esp.name}</Text>
+                      <Text style={{ fontSize: 10, color: COLORS.textLight }}>{esp.mac_address}</Text>
+                    </View>
+                    {esp.is_online && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.online }} />}
+                  </TouchableOpacity>
+                ))}
 
-            <Text style={s.label}>MAC Address</Text>
-            <TextInput
-              style={s.input}
-              placeholder="AA:BB:CC:DD:EE:FF"
-              placeholderTextColor={COLORS.textLight}
-              value={espMac}
-              onChangeText={setEspMac}
-              autoCapitalize="characters"
-              maxLength={17}
-            />
-
-            <Text style={s.label}>Device Name</Text>
-            <TextInput
-              style={s.input}
-              placeholder="e.g. Living Room ESP"
-              placeholderTextColor={COLORS.textLight}
-              value={espName}
-              onChangeText={setEspName}
-            />
+                {selectedUnclaimedId ? (
+                  <>
+                    <Text style={s.label}>Name</Text>
+                    <TextInput style={s.input} placeholder="Device name" placeholderTextColor={COLORS.textLight} value={claimName} onChangeText={setClaimName} />
+                  </>
+                ) : null}
+              </>
+            )}
 
             <View style={s.modalActions}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowRegisterEsp(false); setEspMac(''); setEspName(''); }}>
+              <TouchableOpacity style={s.cancelBtn} onPress={() => { setShowClaimEsp(false); setSelectedUnclaimedId(''); }}>
                 <Text style={s.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.confirmBtn} onPress={handleRegisterEsp} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmText}>Register</Text>}
-              </TouchableOpacity>
+              {selectedUnclaimedId ? (
+                <TouchableOpacity style={s.confirmBtn} onPress={handleClaimEsp} disabled={saving}>
+                  {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmText}>Claim</Text>}
+                </TouchableOpacity>
+              ) : null}
             </View>
           </View>
         </View>
@@ -474,6 +524,12 @@ const s = StyleSheet.create({
   deviceMetaText: {
     fontSize: FONT_SIZE.xs,
     color: COLORS.textSecondary,
+  },
+  offlineLabel: {
+    fontSize: FONT_SIZE.xs,
+    color: COLORS.offline,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   toggleLoader: {
     marginHorizontal: SPACING.md,
@@ -645,6 +701,46 @@ const s = StyleSheet.create({
     fontSize: FONT_SIZE.sm,
     color: COLORS.primary,
     fontWeight: '600',
+  },
+  pinGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  pinChip: {
+    width: 52,
+    height: 52,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.background,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinChipSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  pinChipUsed: {
+    opacity: 0.4,
+  },
+  pinChipText: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  pinChipTextSelected: {
+    color: '#fff',
+  },
+  pinChipTextUsed: {
+    color: COLORS.textLight,
+  },
+  pinChipLabel: {
+    fontSize: 7,
+    color: COLORS.textLight,
+    position: 'absolute',
+    bottom: 3,
+    maxWidth: 48,
   },
   modalActions: {
     flexDirection: 'row',

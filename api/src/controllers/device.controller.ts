@@ -276,6 +276,44 @@ export class DeviceController {
       }
     }
   }
+
+  async getUnclaimedEspDevices(req: AuthRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      const devices = await deviceService.getUnclaimedEspDevices();
+      res.status(200).json({
+        success: true,
+        data: devices,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+          error: 'ESP_UNCLAIMED_GET_ERROR',
+        });
+      }
+    }
+  }
+
+  async claimEspDevice(req: AuthRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      const { name } = req.body;
+      const device = await deviceService.claimEspDevice(req.userId!, req.params.id, name);
+      res.status(200).json({
+        success: true,
+        message: 'ESP device claimed successfully',
+        data: device,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(400).json({
+          success: false,
+          message: error.message,
+          error: 'ESP_CLAIM_ERROR',
+        });
+      }
+    }
+  }
 }
 
 export default new DeviceController();

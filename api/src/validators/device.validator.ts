@@ -18,13 +18,13 @@ export const createDeviceSchema = z.object({
   esp_device_id: z.string().uuid('Invalid ESP device ID'),
   type_id: z.string().uuid('Invalid device type ID'),
   name: z.string().min(1, 'Device name is required'),
-  pin: z.number().int().min(0).max(16, 'Pin must be between 0-16'),
+  pin: z.number().int().min(0).max(8, 'Pin must be between 0-8 (D0-D8)'),
   config: z.record(z.string(), z.unknown()).default({}),
 });
 
 export const updateDeviceSchema = z.object({
   name: z.string().min(1).optional(),
-  pin: z.number().int().min(0).max(16).optional(),
+  pin: z.number().int().min(0).max(8).optional(),
   config: z.record(z.string(), z.unknown()).optional(),
   room_id: z.string().uuid().optional(),
   is_active: z.boolean().optional(),

@@ -107,6 +107,22 @@ export class DeviceService {
 
     if (!existing) throw new Error('ESP device not found');
 
+    const devices = await prisma.device.findMany({
+      where: { esp_device_id: espId },
+      select: { id: true },
+    });
+
+    const scheduleService = (await import('./schedule.service')).default;
+    for (const device of devices) {
+      const schedules = await prisma.schedule.findMany({
+        where: { device_id: device.id },
+        select: { id: true },
+      });
+      for (const schedule of schedules) {
+        scheduleService.removeJob(schedule.id);
+      }
+    }
+
     await prisma.espDevice.delete({
       where: { id: espId },
     });
@@ -229,6 +245,24 @@ export class DeviceService {
 
     if (!existing) throw new Error('Device not found');
 
+    if (data.room_id) {
+      const room = await prisma.room.findFirst({
+        where: { id: data.room_id, floor: { user_id: userId } },
+      });
+      if (!room) throw new Error('Room not found');
+    }
+
+    if (data.pin !== undefined && data.pin !== existing.pin) {
+      const pinConflict = await prisma.device.findFirst({
+        where: {
+          esp_device_id: existing.esp_device_id,
+          pin: data.pin,
+          id: { not: deviceId },
+        },
+      });
+      if (pinConflict) throw new Error(`Pin ${data.pin} is already in use on this ESP device`);
+    }
+
     const device = await prisma.device.update({
       where: { id: deviceId },
       data: { ...data, updated_at: new Date() },
@@ -329,7 +363,7 @@ export class DeviceService {
       where: {
         OR: [
           { user_id: userId },
-          { is_default: true, user_id: null },
+          { is_default: true },
         ],
         is_active: true,
       },
@@ -362,6 +396,53 @@ export class DeviceService {
     });
 
     return { message: 'Device type deleted successfully' };
+  }
+
+  async getUnclaimedEspDevices() {
+    const devices = await prisma.espDevice.findMany({
+      where: { user_id: null },
+      include: {
+        devices: {
+          include: {
+            type: true,
+            room: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return devices;
+  }
+
+  async claimEspDevice(userId: string, espId: string, name?: string) {
+    const esp = await prisma.espDevice.findFirst({
+      where: { id: espId, user_id: null },
+    });
+
+    if (!esp) throw new Error('ESP device not found or already claimed');
+
+    const updated = await prisma.espDevice.update({
+      where: { id: espId },
+      data: {
+        user_id: userId,
+        name: name || esp.name,
+      },
+      include: {
+        devices: {
+          include: {
+            type: true,
+            room: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    });
+
+    return updated;
   }
 }
 

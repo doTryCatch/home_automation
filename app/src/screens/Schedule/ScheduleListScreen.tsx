@@ -32,6 +32,14 @@ const ScheduleListScreen = () => {
   const [actionPower, setActionPower] = useState(true);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editScheduleId, setEditScheduleId] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editHour, setEditHour] = useState('08');
+  const [editMinute, setEditMinute] = useState('00');
+  const [editActionPower, setEditActionPower] = useState(true);
+  const [editDays, setEditDays] = useState<number[]>([]);
+  const [editLoading, setEditLoading] = useState(false);
 
   useEffect(() => {
     loadSchedules();
@@ -72,8 +80,12 @@ const ScheduleListScreen = () => {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await scheduleService.delete(id);
-          await loadSchedules();
+          try {
+            await scheduleService.delete(id);
+            await loadSchedules();
+          } catch (e: any) {
+            Alert.alert('Error', e?.response?.data?.message || 'Failed to delete schedule');
+          }
         },
       },
     ]);
@@ -86,6 +98,41 @@ const ScheduleListScreen = () => {
     setMinute('00');
     setActionPower(true);
     setSelectedDays([]);
+  };
+
+  const openEdit = (schedule: Schedule) => {
+    const cron = parseCron(schedule.cron);
+    setEditScheduleId(schedule.id);
+    setEditName(schedule.name || '');
+    setEditHour(cron.hour);
+    setEditMinute(cron.minute);
+    setEditActionPower((schedule.action as any)?.power ?? true);
+    if (cron.days === '*') {
+      setEditDays([0, 1, 2, 3, 4, 5, 6]);
+    } else {
+      setEditDays(cron.days.split(',').map(Number).filter(n => !isNaN(n)));
+    }
+    setShowEdit(true);
+  };
+
+  const handleEdit = async () => {
+    if (editDays.length === 0) return Alert.alert('Error', 'Select at least one day');
+    const dayField = editDays.length === 7 ? '*' : editDays.join(',');
+    const cron = `${editMinute} ${editHour} * * ${dayField}`;
+    setEditLoading(true);
+    try {
+      await scheduleService.update(editScheduleId, {
+        name: editName || undefined,
+        action: { power: editActionPower },
+        cron,
+      });
+      await loadSchedules();
+      setShowEdit(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.message || e.message);
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const parseCron = (cron: string) => {
@@ -130,6 +177,9 @@ const ScheduleListScreen = () => {
           />
           <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteButton}>
             <MaterialCommunityIcons name="delete-outline" size={20} color={COLORS.danger} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => openEdit(item)} style={styles.deleteButton}>
+            <MaterialCommunityIcons name="pencil-outline" size={20} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -222,6 +272,53 @@ const ScheduleListScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirm} onPress={handleCreate} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalConfirmText}>Create</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showEdit} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Schedule</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.label}>Name (optional)</Text>
+              <TextInput style={styles.input} placeholder="Schedule name" value={editName} onChangeText={setEditName} />
+              <Text style={styles.label}>Time</Text>
+              <View style={styles.timeRow}>
+                <TextInput style={styles.timeInput} value={editHour} onChangeText={setEditHour} keyboardType="numeric" maxLength={2} />
+                <Text style={styles.timeSeparator}>:</Text>
+                <TextInput style={styles.timeInput} value={editMinute} onChangeText={setEditMinute} keyboardType="numeric" maxLength={2} />
+              </View>
+              <Text style={styles.label}>Days</Text>
+              <View style={styles.daysRow}>
+                {DAYS.map((day, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.dayChip, editDays.includes(i) && styles.dayChipSelected]}
+                    onPress={() => setEditDays(prev => prev.includes(i) ? prev.filter(d => d !== i) : [...prev, i])}
+                  >
+                    <Text style={[styles.dayChipText, editDays.includes(i) && styles.dayChipTextSelected]}>{day}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.label}>Action</Text>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={[styles.actionChip, editActionPower && styles.actionChipOn]} onPress={() => setEditActionPower(true)}>
+                  <Text style={[styles.actionChipText, editActionPower && styles.actionChipTextOn]}>Turn ON</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionChip, !editActionPower && styles.actionChipOff]} onPress={() => setEditActionPower(false)}>
+                  <Text style={[styles.actionChipText, !editActionPower && { color: COLORS.danger }]}>Turn OFF</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowEdit(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={handleEdit} disabled={editLoading}>
+                {editLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalConfirmText}>Save</Text>}
               </TouchableOpacity>
             </View>
           </View>

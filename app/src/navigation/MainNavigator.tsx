@@ -10,6 +10,7 @@ import ScheduleListScreen from '../screens/Schedule/ScheduleListScreen';
 import SettingsScreen from '../screens/Settings/SettingsScreen';
 import RoomControlScreen from '../screens/Room/RoomControlScreen';
 import DeviceScheduleScreen from '../screens/Device/DeviceScheduleScreen';
+import ProfileScreen from '../screens/Auth/ProfileScreen';
 import { COLORS } from '../constants/theme';
 
 import RoomDeviceEditorScreen from '../screens/FloorPlan/RoomDeviceEditorScreen';
@@ -20,6 +21,7 @@ export type MainStackParamList = {
   RoomDeviceEditor: { floorId: string; roomId: string };
   RoomControl: { room: any };
   DeviceSchedules: { deviceId: string; deviceName: string };
+  Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -81,6 +83,7 @@ const MainNavigator = () => (
     <Stack.Screen name="DeviceSchedules" component={DeviceScheduleScreen} options={({ route }: any) => ({
       title: `${route.params?.deviceName || 'Device'} Schedules`, headerBackTitle: 'Back',
     })} />
+    <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Edit Profile', headerBackTitle: 'Back' }} />
   </Stack.Navigator>
 );
 

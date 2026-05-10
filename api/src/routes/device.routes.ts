@@ -42,6 +42,16 @@ router.delete(
   DeviceController.deleteEsp
 );
 
+router.get(
+  '/esp/unclaimed',
+  DeviceController.getUnclaimedEspDevices
+);
+
+router.post(
+  '/esp/:id/claim',
+  DeviceController.claimEspDevice
+);
+
 router.post(
   '/types',
   validateBody(createDeviceTypeSchema),

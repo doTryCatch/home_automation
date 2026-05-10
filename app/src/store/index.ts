@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, Floor, Room, Device, EspDevice, Schedule, DeviceType } from '../types';
+import { User, Floor, Room, Device, EspDevice, Schedule, DeviceType, Notification } from '../types';
 import { authService } from '../services/authService';
 import { floorService } from '../services/floorService';
 import { roomService } from '../services/roomService';
 import { deviceService } from '../services/deviceService';
 import { scheduleService } from '../services/scheduleService';
+import { notificationService } from '../services/notificationService';
 import { getStoredApiUrl, setStoredApiUrl, updateApiBaseUrl } from '../services/api';
+import websocketService from '../services/websocketService';
 
 interface AuthState {
   user: User | null;
@@ -73,6 +75,7 @@ interface HomeState {
   loadHome: () => Promise<void>;
   setFloors: (floors: Floor[]) => void;
   togglePin: (floorId: string) => Promise<void>;
+  updateEspOnlineStatus: (espId: string, online: boolean) => void;
 }
 
 export const useHomeStore = create<HomeState>((set, get) => ({
@@ -117,6 +120,13 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       : [...current, floorId];
     await AsyncStorage.setItem('pinned_floors', JSON.stringify(updated));
     set({ pinnedFloorIds: updated });
+  },
+
+  updateEspOnlineStatus: (espId, online) => {
+    const espDevices = get().espDevices.map(esp =>
+      esp.id === espId ? { ...esp, is_online: online } : esp
+    );
+    set({ espDevices });
   },
 }));
 
@@ -176,12 +186,14 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   },
 
   toggleSchedule: async (id) => {
-    const updated = await scheduleService.toggle(id);
-    if (!updated) return;
-    const schedules = get().schedules.map((s) =>
-      s.id === id ? updated : s
-    );
-    set({ schedules });
+    try {
+      const updated = await scheduleService.toggle(id);
+      if (!updated) return;
+      const schedules = get().schedules.map((s) =>
+        s.id === id ? updated : s
+      );
+      set({ schedules });
+    } catch {}
   },
 }));
 
@@ -207,3 +219,64 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ apiUrl: url });
   },
 }));
+
+interface NotificationState {
+  notifications: Notification[];
+  unreadCount: number;
+  loadNotifications: () => Promise<void>;
+  markRead: (ids?: string[]) => Promise<void>;
+  markAllRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+}
+
+export const useNotificationStore = create<NotificationState>((set, get) => ({
+  notifications: [],
+  unreadCount: 0,
+
+  loadNotifications: async () => {
+    try {
+      const [notifications, count] = await Promise.all([
+        notificationService.getAll(),
+        notificationService.getUnreadCount(),
+      ]);
+      set({ notifications: notifications || [], unreadCount: count });
+    } catch {}
+  },
+
+  markRead: async (ids) => {
+    try {
+      await notificationService.markRead(ids);
+      await get().loadNotifications();
+    } catch {}
+  },
+
+  markAllRead: async () => {
+    try {
+      await notificationService.markRead(undefined, true);
+      await get().loadNotifications();
+    } catch {}
+  },
+
+  deleteNotification: async (id) => {
+    try {
+      await notificationService.delete(id);
+      await get().loadNotifications();
+    } catch {}
+  },
+}));
+
+export const subscribeToWebSocket = () => {
+  websocketService.on('esp_status', (data: any) => {
+    const payload = data.payload;
+    if (payload?.espId) {
+      useHomeStore.getState().updateEspOnlineStatus(payload.espId, payload.online);
+    }
+  });
+
+  websocketService.on('device_update', (data: any) => {
+    const payload = data.payload;
+    if (payload?.deviceId && payload?.state) {
+      useDeviceStore.getState().updateDeviceState(payload.deviceId, payload.state);
+    }
+  });
+};

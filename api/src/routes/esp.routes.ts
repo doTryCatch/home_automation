@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { EspController } from '../controllers';
 import { validateBody } from '../middleware';
 import { espHeartbeatSchema, espRegisterSchema } from '../validators';
-import { authMiddleware } from '../middleware';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware';
 
 const router = Router();
 
 router.post(
   '/heartbeat',
+  optionalAuthMiddleware,
   validateBody(espHeartbeatSchema),
   EspController.heartbeat
 );
@@ -21,6 +22,7 @@ router.post(
 
 router.get(
   '/:mac/commands',
+  authMiddleware,
   EspController.getCommands
 );
 

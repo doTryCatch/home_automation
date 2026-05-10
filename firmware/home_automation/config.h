@@ -10,7 +10,7 @@
 #define WIFI_PASSWORD "Passw0rd#ghrce"
 
 // Backend API / WebSocket Server
-#define API_SERVER "transparietal-batholitic-garnet.ngrok-free.dev"
+#define API_SERVER "home-automation-21vt.onrender.com"
 #define API_PORT 443
 #define WS_PATH "/ws"
 
@@ -18,7 +18,7 @@
 #define WS_USE_TLS true
 
 // Pin Configuration
-#define MAX_PINS 17
+#define MAX_PINS 9
 #define RELAY_ON HIGH
 #define RELAY_OFF LOW
 

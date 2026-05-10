@@ -11,6 +11,7 @@ interface CronJob {
   pin: number;
   isActive: boolean;
   nextRun: Date | null;
+  lastRun: Date | null;
   intervalId: ReturnType<typeof setInterval> | null;
 }
 
@@ -54,32 +55,91 @@ export class ScheduleService {
         pin: schedule.device.pin,
         isActive: true,
         nextRun: this.getNextRun(schedule.cron),
+        lastRun: schedule.last_run,
         intervalId: null,
       });
     }
   }
 
   private getNextRun(cron: string): Date {
-    const now = new Date();
-    const parts = cron.split(' ');
-    if (parts.length >= 2) {
-      const minute = parseInt(parts[0]) || now.getMinutes();
-      const hour = parseInt(parts[1]) || now.getHours();
-      const next = new Date(now);
-      next.setHours(hour, minute, 0, 0);
-      if (next <= now) next.setDate(next.getDate() + 1);
-      return next;
+    const parts = cron.trim().split(/\s+/);
+    if (parts.length < 5) {
+      return new Date(Date.now() + 60000);
     }
-    return new Date(now.getTime() + 60000);
+
+    const now = new Date();
+    const [minuteStr, hourStr, domStr, monthStr, dowStr] = parts;
+
+    const parseField = (field: string, min: number, max: number): number[] => {
+      if (field === '*') {
+        const values: number[] = [];
+        for (let i = min; i <= max; i++) values.push(i);
+        return values;
+      }
+      if (field.includes(',')) {
+        return field.split(',').map(v => parseInt(v)).filter(v => !isNaN(v));
+      }
+      if (field.includes('/')) {
+        const [range, stepStr] = field.split('/');
+        const step = parseInt(stepStr) || 1;
+        const start = range === '*' ? min : parseInt(range) || min;
+        const values: number[] = [];
+        for (let i = start; i <= max; i += step) values.push(i);
+        return values;
+      }
+      if (field.includes('-')) {
+        const [s, e] = field.split('-').map(v => parseInt(v));
+        const values: number[] = [];
+        for (let i = s; i <= e; i++) values.push(i);
+        return values;
+      }
+      const val = parseInt(field);
+      return isNaN(val) ? [] : [val];
+    };
+
+    const minutes = parseField(minuteStr, 0, 59);
+    const hours = parseField(hourStr, 0, 23);
+    const doms = parseField(domStr, 1, 31);
+    const months = parseField(monthStr, 1, 12);
+    const dows = parseField(dowStr, 0, 6);
+
+    const DAYS_IN_MONTH = [31, 28, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+
+    for (let yOffset = 0; yOffset <= 1; yOffset++) {
+      const year = now.getFullYear() + yOffset;
+      for (const month of (months.length > 0 ? months : Array.from({ length: 12 }, (_, i) => i + 1))) {
+        if (yOffset === 0 && month < now.getMonth() + 1) continue;
+        const maxDay = month === 2 ? (isLeapYear(year) ? 29 : 28) : DAYS_IN_MONTH[month - 1];
+        for (const day of (doms.length > 0 ? doms : Array.from({ length: maxDay }, (_, i) => i + 1))) {
+          if (day > maxDay) continue;
+          const date = new Date(year, month - 1, day);
+          if (dows.length > 0 && !dows.includes(date.getDay())) continue;
+          for (const hour of (hours.length > 0 ? hours : Array.from({ length: 24 }, (_, i) => i))) {
+            for (const minute of (minutes.length > 0 ? minutes : Array.from({ length: 60 }, (_, i) => i))) {
+              const candidate = new Date(year, month - 1, day, hour, minute, 0, 0);
+              if (candidate > now) {
+                return candidate;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return new Date(Date.now() + 60000);
   }
 
   private addJob(job: CronJob): void {
     const existing = this.jobs.get(job.id);
     if (existing?.intervalId) clearInterval(existing.intervalId);
+    if (existing?.lastRun && !job.lastRun) {
+      job.lastRun = existing.lastRun;
+    }
     this.jobs.set(job.id, job);
   }
 
-  private removeJob(scheduleId: string): void {
+  removeJob(scheduleId: string): void {
     const job = this.jobs.get(scheduleId);
     if (job?.intervalId) clearInterval(job.intervalId);
     this.jobs.delete(scheduleId);

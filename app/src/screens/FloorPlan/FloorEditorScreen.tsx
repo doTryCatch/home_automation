@@ -88,7 +88,7 @@ const FloorEditorScreen = ({ route, navigation }: Props) => {
 
       for (const room of existingRooms) {
         if (!layoutIds.has(room.id)) {
-          try { await roomService.delete(room.id); } catch {}
+          try { await roomService.delete(room.id); } catch (e) { console.error('Failed to delete room:', e); }
         }
       }
 
@@ -107,7 +107,7 @@ const FloorEditorScreen = ({ route, navigation }: Props) => {
               ],
               color: rb.color,
             });
-          } catch {}
+          } catch (e) { console.error('Failed to create room:', e); }
         } else {
           const existing = existingRooms.find(r => r.id === rb.id);
           if (existing) {
@@ -121,7 +121,7 @@ const FloorEditorScreen = ({ route, navigation }: Props) => {
                   { x: rb.x, y: rb.y + rb.height },
                 ],
               });
-            } catch {}
+            } catch (e) { console.error('Failed to update room:', e); }
           }
         }
       }

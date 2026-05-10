@@ -28,7 +28,9 @@ const HomeScreen = () => {
   const [floorName, setFloorName] = useState('');
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => { loadHome(); }, []);
+  useEffect(() => {
+    loadHome().catch(() => {});
+  }, []);
 
   const onlineCount = espDevices.filter(d => d.is_online).length;
 
@@ -67,18 +69,33 @@ const HomeScreen = () => {
       if (isPlaced && floorId && layoutData) {
         const ld = layoutData as any;
         const rooms = (ld?.rooms && Array.isArray(ld.rooms)) ? ld.rooms : [];
-        const updatedRooms = rooms.map((lr: any) => {
-          if (!Array.isArray(lr.devices)) return lr;
-          const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
-          if (devIdx < 0) return lr;
-          const updatedDevices = [...lr.devices];
-          updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
-          return { ...lr, devices: updatedDevices };
-        });
-        await floorService.update(floorId, {
-          layout_data: { ...ld, rooms: updatedRooms },
-        } as any);
-        await loadHome();
+        let targetDevice: any = null;
+        for (const lr of rooms) {
+          if (!Array.isArray(lr.devices)) continue;
+          targetDevice = lr.devices.find((d: any) => d.id === deviceId);
+          if (targetDevice) break;
+        }
+        if (targetDevice) {
+          const allDbDevices = floors.flatMap(f => (f.rooms || []).flatMap(r => r.devices || []));
+          const matchingDb = allDbDevices.find(d => d.name === targetDevice.name && d.esp_device?.is_online);
+          if (matchingDb) {
+            await deviceService.control(matchingDb.id, { power: !isOn });
+            await loadHome();
+          } else {
+            const updatedRooms = rooms.map((lr: any) => {
+              if (!Array.isArray(lr.devices)) return lr;
+              const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
+              if (devIdx < 0) return lr;
+              const updatedDevices = [...lr.devices];
+              updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
+              return { ...lr, devices: updatedDevices };
+            });
+            await floorService.update(floorId, {
+              layout_data: { ...ld, rooms: updatedRooms },
+            } as any);
+            await loadHome();
+          }
+        }
       } else {
         await deviceService.control(deviceId, { power: !isOn });
         await loadHome();
@@ -92,7 +109,7 @@ const HomeScreen = () => {
         return next;
       });
     }
-  }, [loadHome]);
+  }, [loadHome, floors]);
 
   const handleDeleteFloor = useCallback((floor: Floor) => {
     Alert.alert('Delete Floor', `Delete "${floor.name}" and all its rooms and devices?`, [
@@ -182,9 +199,15 @@ const HomeScreen = () => {
           <Text style={s.greeting}>Hello, {user?.name || 'User'}</Text>
           <Text style={s.subGreeting}>Your home at a glance</Text>
         </View>
-        <View style={s.statusBadge}>
-          <View style={[s.statusDot, { backgroundColor: onlineCount > 0 ? COLORS.online : COLORS.offline }]} />
-          <Text style={s.statusText}>{onlineCount}/{espDevices.length} online</Text>
+        <View style={[s.statusBadge, { backgroundColor: onlineCount === espDevices.length && espDevices.length > 0 ? COLORS.online + '15' : onlineCount > 0 ? COLORS.warning + '15' : COLORS.offline + '15' }]}>
+          <MaterialCommunityIcons
+            name={onlineCount === espDevices.length && espDevices.length > 0 ? 'wifi' : onlineCount > 0 ? 'wifi-alert' : 'wifi-off'}
+            size={14}
+            color={onlineCount === espDevices.length && espDevices.length > 0 ? COLORS.online : onlineCount > 0 ? COLORS.warning : COLORS.offline}
+          />
+          <Text style={[s.statusText, { color: onlineCount === espDevices.length && espDevices.length > 0 ? COLORS.online : onlineCount > 0 ? COLORS.warning : COLORS.offline }]}>
+            {espDevices.length === 0 ? 'No devices' : `${onlineCount}/${espDevices.length} online`}
+          </Text>
         </View>
       </View>
 

@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import authService from '../services/auth.service';
-import { RegisterInput, LoginInput, UpdateProfileInput, ChangePasswordInput } from '../validators';
+import { RegisterInput, LoginInput, UpdateProfileInput, ChangePasswordInput, RefreshTokenInput } from '../validators';
 import { ApiResponse } from '../types';
 import { AuthRequest } from '../middleware/auth.middleware';
 
@@ -115,6 +115,35 @@ export class AuthController {
           success: false,
           message: error.message,
           error: 'DELETE_ERROR',
+        });
+      }
+    }
+  }
+
+  async refreshToken(req: AuthRequest, res: Response<ApiResponse>, next: NextFunction): Promise<void> {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) {
+        res.status(401).json({
+          success: false,
+          message: 'Refresh token required',
+          error: 'NO_REFRESH_TOKEN',
+        });
+        return;
+      }
+
+      const result = await authService.refreshToken(refreshToken);
+      res.status(200).json({
+        success: true,
+        message: 'Token refreshed',
+        data: result,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(401).json({
+          success: false,
+          message: error.message,
+          error: 'REFRESH_ERROR',
         });
       }
     }
