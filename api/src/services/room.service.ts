@@ -1,4 +1,5 @@
 import prisma from '../config/database';
+import webSocketService from '../utils/websocket';
 import { CreateRoomInput, UpdateRoomInput } from '../validators';
 
 export class RoomService {
@@ -127,10 +128,28 @@ export class RoomService {
   async delete(userId: string, roomId: string) {
     const existing = await prisma.room.findFirst({
       where: { id: roomId, floor: { user_id: userId } },
+      include: {
+        devices: {
+          include: {
+            esp_device: {
+              select: { mac_address: true },
+            },
+          },
+        },
+      },
     });
 
     if (!existing) {
       throw new Error('Room not found');
+    }
+
+    for (const device of existing.devices) {
+      if (device.esp_device?.mac_address) {
+        webSocketService.sendConfigToEsp(device.esp_device.mac_address, 'remove_device', {
+          action: 'remove_device',
+          pin: device.pin,
+        });
+      }
     }
 
     await prisma.room.delete({

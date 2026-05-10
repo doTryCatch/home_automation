@@ -85,16 +85,18 @@ const FloorEditorScreen = ({ route, navigation }: Props) => {
 
       const existingRooms = floor.rooms || [];
       const layoutIds = new Set(rooms.map(r => r.id));
+      const layoutNames = new Set(rooms.map(r => r.name));
 
       for (const room of existingRooms) {
-        if (!layoutIds.has(room.id)) {
+        if (!layoutIds.has(room.id) && !layoutNames.has(room.name)) {
           try { await roomService.delete(room.id); } catch (e) { console.error('Failed to delete room:', e); }
         }
       }
 
       const dbIds = new Set(existingRooms.map(r => r.id));
+      const dbNames = new Set(existingRooms.map(r => r.name));
       for (const rb of rooms) {
-        if (!dbIds.has(rb.id)) {
+        if (!dbIds.has(rb.id) && !dbNames.has(rb.name)) {
           try {
             await roomService.create({
               floor_id: floor.id,

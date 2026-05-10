@@ -115,6 +115,27 @@ const HomeScreen = () => {
         }
       } else {
         await deviceService.control(deviceId, { power: !isOn });
+
+        if (activeFloor) {
+          const ld = activeFloor.layout_data as any;
+          const lrArr = (ld?.rooms && Array.isArray(ld.rooms)) ? ld.rooms : [];
+          let changed = false;
+          const updatedRooms = lrArr.map((lr: any) => {
+            if (!Array.isArray(lr.devices)) return lr;
+            const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId || d.dbDeviceId === deviceId || d.name === devices.find(dd => dd.id === deviceId)?.name);
+            if (devIdx < 0) return lr;
+            changed = true;
+            const updatedDevices = [...lr.devices];
+            updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
+            return { ...lr, devices: updatedDevices };
+          });
+          if (changed) {
+            await floorService.update(activeFloor.id, {
+              layout_data: { ...ld, rooms: updatedRooms },
+            } as any);
+          }
+        }
+
         await loadHome();
       }
     } catch (e: any) {

@@ -63,6 +63,16 @@ const FloorPlanScreen = () => {
         onPress: async () => {
           try {
             await roomService.delete(room.id);
+            if (selectedFloor) {
+              const ld = (selectedFloor.layout_data as any) || {};
+              const layoutRooms: any[] = (ld.rooms && Array.isArray(ld.rooms)) ? ld.rooms : [];
+              const cleaned = layoutRooms.filter((r: any) => r.id !== room.id && r.name !== room.name);
+              if (cleaned.length !== layoutRooms.length) {
+                await floorService.update(selectedFloor.id, {
+                  layout_data: { ...ld, rooms: cleaned },
+                } as any);
+              }
+            }
             await loadHome();
           } catch {
             Alert.alert('Error', 'Failed to delete room');
@@ -154,6 +164,9 @@ const FloorPlanScreen = () => {
               <MaterialCommunityIcons name="pencil-outline" size={14} color={COLORS.primary} />
               <Text style={s.editRoomBtnText}>Edit</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={s.editRoomBtn} onPress={() => handleDeleteRoom(item)}>
+              <MaterialCommunityIcons name="delete-outline" size={14} color={COLORS.danger} />
+            </TouchableOpacity>
             <View style={s.onIndicator}>
               <View style={[s.onDot, { backgroundColor: onCount > 0 ? COLORS.primary : COLORS.textLight }]} />
               <Text style={s.onText}>{onCount} on</Text>
@@ -217,11 +230,20 @@ const FloorPlanScreen = () => {
   const dbOn = rooms.reduce(
     (sum, r) => sum + (r.devices?.filter(d => (d.state as any)?.power).length || 0), 0,
   );
-  const placedTotal = layoutRooms.reduce((s: number, lr: any) => s + (Array.isArray(lr.devices) ? lr.devices.length : 0), 0);
-  const placedOn = layoutRooms.reduce((s: number, lr: any) =>
-    s + ((Array.isArray(lr.devices) ? lr.devices : []).filter((d: any) => d.isOn).length), 0);
-  const totalDevices = dbTotal + placedTotal;
-  const totalOn = dbOn + placedOn;
+  const placedOnly = layoutRooms.reduce((s: number, lr: any) => {
+    if (!Array.isArray(lr.devices)) return s;
+    const dbRoom = rooms.find((r: any) => r.id === lr.id || r.name === lr.name);
+    const dbNames = new Set((dbRoom?.devices || []).map((d: any) => d.name));
+    return s + lr.devices.filter((d: any) => !dbNames.has(d.name)).length;
+  }, 0);
+  const placedOnOnly = layoutRooms.reduce((s: number, lr: any) => {
+    if (!Array.isArray(lr.devices)) return s;
+    const dbRoom = rooms.find((r: any) => r.id === lr.id || r.name === lr.name);
+    const dbNames = new Set((dbRoom?.devices || []).map((d: any) => d.name));
+    return s + lr.devices.filter((d: any) => !dbNames.has(d.name) && d.isOn).length;
+  }, 0);
+  const totalDevices = dbTotal + placedOnly;
+  const totalOn = dbOn + placedOnOnly;
 
   return (
     <SafeAreaView style={s.container} edges={['left', 'right']}>
@@ -261,7 +283,7 @@ const FloorPlanScreen = () => {
               {totalDevices} device{totalDevices !== 1 ? 's' : ''}
             </Text>
             <Text style={s.floorStatsSep}>·</Text>
-            <View style={[s.statusDot, { backgroundColor: totalOn > 0 ? COLORS.primary : COLORS.textLight }]} />
+            <View style={[s.onIndicatorDot, { backgroundColor: totalOn > 0 ? COLORS.primary : COLORS.textLight }]} />
             <Text style={s.floorStatsText}>{totalOn} on</Text>
           </View>
           <TouchableOpacity
@@ -276,10 +298,8 @@ const FloorPlanScreen = () => {
 
       <FlatList
         data={roomData}
-        keyExtractor={(item, index) => item?.id || `add-${index}`}
-        numColumns={2}
+        keyExtractor={(item, index) => item?.id || `room-${index}`}
         contentContainerStyle={s.roomGrid}
-        columnWrapperStyle={rooms.length > 0 ? s.roomRow : undefined}
         renderItem={renderRoomCard}
         showsVerticalScrollIndicator={false}
       />
@@ -363,13 +383,9 @@ const s = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.md,
     paddingBottom: SPACING.xxl,
-  },
-  roomRow: {
     gap: SPACING.sm,
-    marginBottom: SPACING.sm,
   },
   roomCard: {
-    flex: 1,
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     borderLeftWidth: 4,
@@ -443,6 +459,11 @@ const s = StyleSheet.create({
   deviceCount: {
     fontSize: FONT_SIZE.xs,
     color: COLORS.textSecondary,
+  },
+  onIndicatorDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
   onIndicator: {
     flexDirection: 'row',

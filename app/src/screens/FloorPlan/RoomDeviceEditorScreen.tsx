@@ -203,9 +203,12 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
       newDev.espPin = parseInt(selectedPin, 10);
 
       try {
-        const typeName = devType.type.charAt(0).toUpperCase() + devType.type.slice(1);
+        const typeName = devType.type;
         const matchingType = deviceTypes.find(t =>
-          t.name.toLowerCase() === typeName.toLowerCase() || t.name.toLowerCase() === devType.type
+          t.name.toLowerCase() === typeName ||
+          t.name.toLowerCase().includes(typeName) ||
+          typeName.includes(t.name.toLowerCase()) ||
+          t.icon === typeName
         );
 
         if (matchingType) {
@@ -233,11 +236,21 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
     setSelectedPin('');
   }, [devices, pendingPos, checkDirty, selectedEspId, selectedPin, roomId, deviceTypes]);
 
-  const removeDevice = useCallback((devId: string) => {
+  const removeDevice = useCallback(async (devId: string) => {
+    const dev = devices.find(d => d.id === devId);
+    if (dev?.dbDeviceId) {
+      try {
+        await deviceService.delete(dev.dbDeviceId);
+      } catch (e: any) {
+        Alert.alert('Error', 'Failed to delete device from server');
+        return;
+      }
+    }
     const updated = devices.filter(d => d.id !== devId);
     setDevices(updated);
     checkDirty(updated);
-  }, [devices, checkDirty]);
+    await saveOnStates(updated);
+  }, [devices, checkDirty, saveOnStates]);
 
   const handleSave = useCallback(async () => {
     if (!floor || !dirty) return;

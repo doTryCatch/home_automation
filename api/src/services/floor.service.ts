@@ -1,4 +1,5 @@
 import prisma from '../config/database';
+import webSocketService from '../utils/websocket';
 import { CreateFloorInput, UpdateFloorInput } from '../validators';
 
 export class FloorService {
@@ -119,10 +120,36 @@ export class FloorService {
   async delete(userId: string, floorId: string) {
     const existing = await prisma.floor.findFirst({
       where: { id: floorId, user_id: userId },
+      include: {
+        rooms: {
+          include: {
+            devices: {
+              include: {
+                esp_device: {
+                  select: { mac_address: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!existing) {
       throw new Error('Floor not found');
+    }
+
+    const notified = new Set<string>();
+    for (const room of existing.rooms) {
+      for (const device of room.devices) {
+        if (device.esp_device?.mac_address && !notified.has(device.esp_device.mac_address)) {
+          webSocketService.sendConfigToEsp(device.esp_device.mac_address, 'remove_device', {
+            action: 'remove_device',
+            pin: device.pin,
+          });
+          notified.add(device.esp_device.mac_address);
+        }
+      }
     }
 
     await prisma.floor.delete({
