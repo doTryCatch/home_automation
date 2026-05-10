@@ -33,6 +33,7 @@ export interface PlacedDevice {
   isOn?: boolean;
   espDeviceId?: string;
   espPin?: number;
+  dbDeviceId?: string;
 }
 
 export type EditorMode = 'draw' | 'select' | 'device';

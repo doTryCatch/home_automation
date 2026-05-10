@@ -27,6 +27,7 @@ export class WebSocketService {
       });
 
       ws.on('message', (message: Buffer) => {
+        ws.isAlive = true;
         try {
           const data = JSON.parse(message.toString());
           this.handleMessage(ws, data);

@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../constants/theme';
 import { useHomeStore } from '../../store';
 import { floorService } from '../../services/floorService';
+import { deviceService } from '../../services/deviceService';
 import { Floor, Room } from '../../types';
 import { DEVICE_TYPES, PlacedDevice, RoomBlock } from './FloorPlanEditor';
 
@@ -24,7 +25,7 @@ type Props = { route: { params: { floorId: string; roomId: string } }; navigatio
 
 export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
   const { floorId, roomId } = route.params;
-  const { floors, loadHome, espDevices } = useHomeStore();
+  const { floors, loadHome, espDevices, deviceTypes } = useHomeStore();
   const [saving, setSaving] = useState(false);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [pendingPos, setPendingPos] = useState<{ rx: number; ry: number } | null>(null);
@@ -149,7 +150,7 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
     dragStartPos.current = null;
   }, [toggleDevice]);
 
-  const addDevice = useCallback((devType: typeof DEVICE_TYPES[number]) => {
+  const addDevice = useCallback(async (devType: typeof DEVICE_TYPES[number]) => {
     if (!pendingPos) return;
     const count = devices.filter(d => d.type === devType.type).length + 1;
     const newDev: PlacedDevice = {
@@ -163,6 +164,26 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
     if (selectedEspId && selectedPin !== '') {
       newDev.espDeviceId = selectedEspId;
       newDev.espPin = parseInt(selectedPin, 10);
+
+      try {
+        const typeName = devType.type.charAt(0).toUpperCase() + devType.type.slice(1);
+        const matchingType = deviceTypes.find(t =>
+          t.name.toLowerCase() === typeName.toLowerCase() || t.name.toLowerCase() === devType.type
+        );
+
+        if (matchingType) {
+          const dbDevice = await deviceService.create({
+            room_id: roomId,
+            esp_device_id: selectedEspId,
+            type_id: matchingType.id,
+            name: newDev.name,
+            pin: newDev.espPin,
+          });
+          newDev.dbDeviceId = dbDevice.id;
+        }
+      } catch (e: any) {
+        console.warn('Failed to create DB device:', e?.response?.data?.message || e.message);
+      }
     }
 
     const updated = [...devices, newDev];
@@ -173,7 +194,7 @@ export default function RoomDeviceEditorScreen({ route, navigation }: Props) {
     setSelectedDevType(null);
     setSelectedEspId('');
     setSelectedPin('');
-  }, [devices, pendingPos, checkDirty, selectedEspId, selectedPin]);
+  }, [devices, pendingPos, checkDirty, selectedEspId, selectedPin, roomId, deviceTypes]);
 
   const removeDevice = useCallback((devId: string) => {
     const updated = devices.filter(d => d.id !== devId);

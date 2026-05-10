@@ -76,7 +76,21 @@ const HomeScreen = () => {
           if (targetDevice) break;
         }
         if (targetDevice) {
-          if (targetDevice.espDeviceId && targetDevice.espPin !== undefined) {
+          if (targetDevice.dbDeviceId) {
+            await deviceService.control(targetDevice.dbDeviceId, { power: !isOn });
+            const updatedRooms = rooms.map((lr: any) => {
+              if (!Array.isArray(lr.devices)) return lr;
+              const devIdx = lr.devices.findIndex((d: any) => d.id === deviceId);
+              if (devIdx < 0) return lr;
+              const updatedDevices = [...lr.devices];
+              updatedDevices[devIdx] = { ...updatedDevices[devIdx], isOn: !isOn };
+              return { ...lr, devices: updatedDevices };
+            });
+            await floorService.update(floorId, {
+              layout_data: { ...ld, rooms: updatedRooms },
+            } as any);
+            await loadHome();
+          } else if (targetDevice.espDeviceId && targetDevice.espPin !== undefined) {
             await deviceService.sendEspCommand(targetDevice.espDeviceId, targetDevice.espPin, { power: !isOn });
             const updatedRooms = rooms.map((lr: any) => {
               if (!Array.isArray(lr.devices)) return lr;
